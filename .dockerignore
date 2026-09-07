@@ -1,0 +1,9 @@
+data
+.venv
+**/__pycache__
+tests
+.git
+*.zip
+release
+scripts
+.github

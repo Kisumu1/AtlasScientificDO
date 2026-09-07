@@ -1,0 +1,81 @@
+name: Build and publish BlueOS extension
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-pi-images:
+    name: Test Pi image (${{ matrix.platform }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux/arm/v7, linux/arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Build architecture test image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          load: true
+          tags: atlas-pi-test:local
+      - name: Run tests and onboard startup check under ARM emulation
+        env:
+          ATLAS_PLATFORM: ${{ matrix.platform }}
+        run: |
+          docker run --rm --platform "$ATLAS_PLATFORM" -v "$PWD/tests:/tests:ro" atlas-pi-test:local python -m unittest discover -s /tests -v
+          docker run -d --name atlas-smoke --platform "$ATLAS_PLATFORM" atlas-pi-test:local
+          trap 'docker logs atlas-smoke; docker rm -f atlas-smoke' EXIT
+          docker exec -i atlas-smoke python - < scripts/smoke_image.py
+
+  publish:
+    name: Publish multi-architecture extension to Docker Hub
+    needs: test-pi-images
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare version and BlueOS metadata
+        id: meta
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          MY_NAME: ${{ vars.MY_NAME }}
+          MY_EMAIL: ${{ vars.MY_EMAIL }}
+        run: python3 scripts/prepare_release.py
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Build and push both Pi architectures
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm/v7,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.version }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            AUTHORS=${{ steps.meta.outputs.authors }}
+            COMPANY=${{ steps.meta.outputs.company }}
+            README_URL=${{ steps.meta.outputs.readme }}
+            LINKS=${{ steps.meta.outputs.links }}
+            SOURCE_URL=${{ steps.meta.outputs.source }}
+      - name: Verify published manifest includes both Pi architectures
+        env:
+          ATLAS_IMAGE: ${{ steps.meta.outputs.image }}
+          ATLAS_VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          docker buildx imagetools inspect "$ATLAS_IMAGE:$ATLAS_VERSION" --raw > manifest.json
+          python3 scripts/check_manifest.py manifest.json
+      - name: Provide BlueOS install fields and Bazaar metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: blueos-install-and-bazaar
+          path: release/
