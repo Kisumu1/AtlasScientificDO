@@ -30,11 +30,11 @@ def handler(service):
                 if url.path == '/api/state':
                     return self.send(service.state())
                 if url.path == '/api/ports':
-                    return self.send(service.ports())
+                    return self.send(service.ports(parse_qs(url.query).get('transport', ['i2c'])[0]))
                 if url.path == '/register_service':
                     return self.send(dict(name='Atlas Sensors', description='Dissolved oxygen monitoring',
                                           icon='mdi-water-percent', company='Community extension',
-                                          version=os.environ.get('ATLAS_VERSION', '0.1.1-beta.1'),
+                                          version=os.environ.get('ATLAS_VERSION', '0.1.2-beta.1'),
                                           webpage=os.environ.get('ATLAS_SOURCE_URL') or '/', api='/api/state',
                                           works_in_relative_paths=True))
                 if url.path == '/api/export':

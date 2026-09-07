@@ -3,6 +3,7 @@ import io
 import json
 import math
 import os
+import re
 import sqlite3
 import threading
 import time
@@ -11,10 +12,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from serial.tools import list_ports
-from .sensors import DemoDO, EzoDO, SensorError
+from .sensors import DemoDO, EzoDO, EzoDOI2C, SensorError
 
 DEFAULTS = dict(mode='hardware', port='', baud=9600, interval_s=2,
-                temperature_c=20.0, salinity_ppt=0.0, pressure_kpa=101.3)
+                temperature_c=20.0, salinity_ppt=0.0, pressure_kpa=101.3,
+                transport='i2c', i2c_address=97)
 FIELDS = ['timestamp_utc', 'mode', 'sensor', 'mg_l', 'saturation_pct',
           'temperature_c', 'salinity_ppt', 'pressure_kpa', 'calibration_points']
 
@@ -25,8 +27,14 @@ def validate_config(raw):
     result = dict(raw)
     if raw['mode'] not in ('hardware', 'demo'):
         raise ValueError('Invalid mode')
+    if raw['transport'] not in ('i2c', 'uart'):
+        raise ValueError('Choose I2C or UART')
+    if type(raw['i2c_address']) is not int or not 8 <= raw['i2c_address'] <= 119:
+        raise ValueError('I2C address must be between 8 and 119 (default 97 / 0x61)')
     if not isinstance(raw['port'], str) or len(raw['port']) > 250 or any(ord(c) < 32 for c in raw['port']):
         raise ValueError('Invalid serial port')
+    if raw['transport'] == 'i2c' and raw['port'] and not re.fullmatch(r'/dev/i2c-\d+', raw['port']):
+        raise ValueError('I2C device must be a path such as /dev/i2c-6')
     if type(raw['baud']) is not int or raw['baud'] not in (300, 1200, 2400, 9600, 19200, 38400, 57600, 115200):
         raise ValueError('Unsupported baud rate')
     for field, low, high in [('interval_s', 1, 60), ('temperature_c', 0, 50),
@@ -44,7 +52,11 @@ class Service:
         self.config_path = self.directory / 'settings.json'
         self.config = dict(DEFAULTS)
         if self.config_path.exists():
-            self.config = validate_config(json.loads(self.config_path.read_text()))
+            saved = json.loads(self.config_path.read_text())
+            # Old USB-only installations keep their explicitly selected UART connection.
+            if isinstance(saved, dict) and 'transport' not in saved:
+                saved.update(transport='uart', i2c_address=97)
+            self.config = validate_config(saved)
         if demo:
             self.config['mode'] = 'demo'
         self.lock = threading.RLock()
@@ -74,7 +86,10 @@ class Service:
         return datetime.now(timezone.utc).isoformat(timespec='milliseconds')
 
     @staticmethod
-    def ports():
+    def ports(transport='uart'):
+        if transport == 'i2c':
+            return [dict(device=str(p), description='Navigator external I2C' if p.name == 'i2c-6' else 'Linux I2C bus', serial_number=None)
+                    for p in sorted(Path('/dev').glob('i2c-*'))]
         ports = [dict(device=p.device, description=p.description, serial_number=p.serial_number)
                  for p in list_ports.comports()]
         # Prefer a stable USB serial identity on the Linux host mounted by BlueOS.
@@ -111,8 +126,12 @@ class Service:
             try:
                 if self.sensor is None:
                     self.status = 'connecting'
-                    self.sensor = (DemoDO() if self.config['mode'] == 'demo' else
-                                   EzoDO(self.config['port'], self.config['baud']))
+                    if self.config['mode'] == 'demo':
+                        self.sensor = DemoDO()
+                    elif self.config['transport'] == 'i2c':
+                        self.sensor = EzoDOI2C(self.config['port'], self.config['i2c_address'])
+                    else:
+                        self.sensor = EzoDO(self.config['port'], self.config['baud'])
                     self.sensor.compensate(self.config)
                     self.points = self.sensor.calibration()
                     self.identity = self.sensor.identity

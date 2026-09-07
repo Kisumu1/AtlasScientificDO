@@ -1,8 +1,8 @@
 # Atlas Sensors — BlueOS extension
 
-An onboard BlueOS extension for the **Atlas EZO-DO circuit on the G2-USB-ISO isolated USB carrier**. The Raspberry Pi runs the driver, logging and web server. The interface opens inside BlueOS. The deployment target is the BlueOS Extensions Manager.
+An onboard BlueOS extension for the **Atlas EZO-DO circuit on the original ISCCB-2 isolated carrier from the dissolved oxygen kit, connected to a Navigator over I²C**. The Raspberry Pi runs the driver, logging and web server. The interface opens inside BlueOS. The deployment target is the BlueOS Extensions Manager.
 
-Current release: **0.1.1-beta.1**. Only dissolved oxygen is implemented. This is an independent community integration, not an official Atlas Scientific product.
+Current release: **0.1.2-beta.1**. Only dissolved oxygen is implemented. This is an independent community integration, not an official Atlas Scientific product.
 
 ## What makes this a BlueOS extension
 
@@ -10,7 +10,7 @@ Current release: **0.1.1-beta.1**. Only dissolved oxygen is implemented. This is
 - `/register_service` endpoint to register **Atlas Sensors** in the BlueOS sidebar.
 - Relative frontend URLs for the BlueOS proxy/embedded interface.
 - Persistent host storage for settings and recordings.
-- USB serial access for the FTDI interface on the G2-USB-ISO.
+- I²C access to the Navigator external bus, with default EZO-DO address 97 (0x61). No USB carrier is required.
 - GitHub Actions build, emulated tests and publishing for **linux/arm/v7** (32-bit ARM) and **linux/arm64** (64-bit ARM).
 - A single published image tag containing both architectures. Docker on the Pi selects the appropriate image for its operating system.
 
@@ -42,7 +42,7 @@ This uses GitHub’s build machines, so Docker Desktop is not needed on your com
 8. From the completed workflow, download the **blueos-install-and-bazaar** artifact. Its `INSTALL.txt` contains the actual install fields for your account. The Docker Hub tag will be:
 
    ```text
-   YOUR_DOCKER_USERNAME/blueos-atlas-sensors:0.1.1-beta.1
+   YOUR_DOCKER_USERNAME/blueos-atlas-sensors:0.1.2-beta.1
    ```
 
 The workflow publishes only when manually run. For later changes, update `VERSION`, commit, and run it again. Use a new version rather than reusing a published tag.
@@ -51,7 +51,7 @@ The workflow publishes only when manually run. For later changes, update `VERSIO
 
 You can install your own image without waiting for public Bazaar approval.
 
-1. Connect the G2-USB-ISO to a USB port on the onboard Pi with a data cable. The EZO-DO circuit must be in UART mode, normally 9600 baud. Follow the Atlas wiring diagram when fitting the EZO-DO to its carrier.
+1. Wire the original isolated carrier to the Navigator as described in **Navigator wiring** below. The EZO-DO must be in **I²C mode** (blue standby LED), normally address **97 / 0x61**.
 2. Give the Pi internet access for the download and open its BlueOS interface.
 3. Go to **Extensions → Installed → +** (the Add button).
 4. Fill in:
@@ -61,19 +61,43 @@ You can install your own image without waiting for public Bazaar approval.
    | Extension Identifier | `YOUR_DOCKER_USERNAME.atlas-sensors` |
    | Extension Name | `Atlas Sensors` |
    | Docker image | `YOUR_DOCKER_USERNAME/blueos-atlas-sensors` |
-   | Docker tag | `0.1.1-beta.1` |
+   | Docker tag | `0.1.2-beta.1` |
    | Custom settings | Paste the complete `blueos-settings.json` from this package or workflow artifact |
 
 5. Submit the install. BlueOS downloads the matching ARM image, creates its container and manages its lifecycle. **Atlas Sensors** should appear on the Installed page and then in the sidebar after service discovery.
-6. Open **Atlas Sensors** from the BlueOS sidebar. Keep **USB sensor · real measurements** selected. Click **Find ports** and select the Atlas board, preferably its `/dev/serial/by-id/...` path. Otherwise use its verified `/dev/ttyUSB0` or other USB serial path. **Do not use `/dev/atlas-do` from the previous package.**
-7. Leave the baud rate at 9600 unless your circuit has been configured differently. Set the water temperature, salinity and surface atmospheric pressure inputs, then click **Save & connect**.
+6. Open **Atlas Sensors** from the BlueOS sidebar. Select **Sensor · real measurements**, connection **I²C**, bus **`/dev/i2c-6`**, and address **`97`** (decimal, equivalent to `0x61`). The app lists Linux bus devices without scanning other sensors.
+7. Set water temperature, salinity and surface atmospheric pressure, then click **Save & connect**. Baud rate does not apply to I²C.
 8. Verify the identified EZO-DO, real readings, calibration status, recording/export and recovery after an extension restart.
 
 The default port is allocated by BlueOS; there is no need to use localhost or manually start a server. Open it through BlueOS. Manage stop/start, restart, settings and uninstall through the Extensions Manager.
 
-### USB and storage permissions
+### Navigator wiring
 
-`blueos-settings.json` mounts `/dev` into the container so USB nodes and stable symlinks are visible, and grants Docker device access to **USB serial major 188**, which includes FTDI serial devices. It does not request privileged mode or access to the Docker socket. This makes installation possible while the sensor is disconnected and supports reconnecting to newly created USB serial nodes. It grants access to USB serial devices as a class; the application only opens the port you select.
+Power the vehicle off before wiring. Use a Navigator **external I²C connector (bus 6)**, not the internal sensor bus. Match signal labels against the Navigator pinout; do not infer connector order from wire colors.
+
+| Navigator external I²C signal | Original Atlas carrier pin |
+| --- | --- |
+| 3.3 V | VCC |
+| GND | GND (host-side ground) |
+| SDA | TX / SDA |
+| SCL | RX / SCL |
+| No connection | OFF — leave unconnected |
+
+Connect the DO probe to the carrier’s SMA connector. The carrier has pull-ups and supports a 3.3 V input; using the Navigator 3.3 V supply keeps the host-side pull-ups at the correct level. Do not connect the isolated probe ground to host ground. Keep the I²C wiring short inside the dry enclosure.
+
+**Switch the EZO-DO to I²C before connecting it to the Navigator bus.** It ships in UART mode. Follow the Atlas EZO-DO datasheet’s **Manual switching to I²C** procedure (printed page 36); this restores the default I²C address to 97. Use the circuit-side pins/PGND shown in that procedure, not a guessed short across the carrier’s host-side pins. Alternatively, if you already have a working UART connection, send `I2C,97` through that connection. The extension does not automatically change device protocol or address. Blue standby LED indicates I²C mode.
+
+Blue Robotics documents external bus 6 for the Navigator. If `/dev/i2c-6` is absent, check the Navigator/BlueOS configuration; do not switch to an internal bus or change boot overlays at random.
+
+Sources: [Atlas carrier pinout and isolation](https://files.atlas-scientific.com/electrically-isolated-ezo-carrier-board.pdf), [EZO-DO mode switching and protocol](https://files.atlas-scientific.com/DO_EZO_Datasheet.pdf), [Navigator device connection guide](https://bluerobotics.com/learn/connecting-your-device-with-navigator-and-blueos/).
+
+### Upgrade from the USB version
+
+After publishing tag `0.1.2-beta.1`, edit the installed extension in BlueOS: select the new tag **and replace Custom settings with the updated `blueos-settings.json`**. Old settings only allow USB serial devices; the new settings also permit Linux I²C devices. Save/restart, then select I²C, `/dev/i2c-6`, and address 97 in the dashboard. Legacy saved settings are migrated as UART to avoid silently redirecting an existing connection. Stop recording before changing the connection. Recording files remain in the persistent data directory.
+
+### Device and storage permissions
+
+`blueos-settings.json` mounts `/dev` and grants access to **I²C device major 89** and the existing **USB serial major 188**. No privileged mode or Docker socket is requested. The app opens only the bus/address or serial port you select. Native UART ports need their own device mapping/permissions and must be free from autopilot or serial-bridge use; the supported setup for your original carrier is Navigator I²C.
 
 The persistent folder is `/usr/blueos/extensions/atlas-sensors` on the Pi, mounted at `/data`. Keep this mount across upgrades. Settings and recordings live there, not on your laptop. The image starts in hardware mode unless a user has explicitly saved demo mode in existing settings.
 
@@ -95,11 +119,11 @@ Publishing to Docker Hub alone does not create a public store listing. You do no
 
 - Live mg/L, percent saturation and a trend graph, with explicit stale/disconnected states.
 - Manual recording to SQLite and per-recording CSV downloads. UTC timestamps, real/demo mode, compensation inputs and calibration status are included. Recording does not resume automatically after restart.
-- EZO-DO identity verification before configuration. Enables both output units, disables continuous output, and serializes commands with sampling.
+- EZO-DO identity verification before configuration. Enables both output units and serializes commands with sampling. The I²C driver uses raw command bytes and binary response status, with processing delays and bounded busy retries. Continuous output is disabled only for UART connections.
 - Manual temperature, salinity in ppt, and atmospheric pressure compensation, reapplied after reconnect. Defaults must be checked for your deployment. The atmospheric pressure field is not ROV depth pressure.
 - Air and zero calibration controls require confirmation and stopped recording. Follow the [Atlas preparation and calibration procedure](https://files.atlas-scientific.com/DO_EZO_Datasheet.pdf). Existing calibration is not changed on startup.
 - Demo mode is explicitly labeled and never used as an automatic fallback for failed hardware.
-- Application reconnects after errors. A stable by-id path is preferred; a raw ttyUSB number can change after replugging. If needed, refresh the port selection or restart through BlueOS.
+- Application reconnects after communication errors. No automatic address scanning or protocol switching is performed.
 - Recordings are not automatically deleted. Download and manage storage periodically. The dashboard lists the latest 100 sessions; older data remains in SQLite.
 - No Cockpit overlay or additional Atlas sensor driver yet. The driver is separate so those can be added later.
 
@@ -107,7 +131,7 @@ Publishing to Docker Hub alone does not create a public store listing. You do no
 
 Local backend tests pass. The base image’s official architecture list includes ARM32v7 and ARM64v8. The supplied workflow is configured to build and test both Pi images before publishing.
 
-**The ARM build workflow has not been run here, no image has been published to your account, and physical BlueOS/USB operation has not been verified.** Docker and access to your GitHub, Docker Hub and Pi were not available for those checks. Successful Actions runs establish container compatibility; the onboard checks in section B establish actual hardware behavior.
+**The ARM build workflow has not been run here, no image has been published to your account, and physical Navigator/I²C operation has not been verified.** Docker and access to your GitHub, Docker Hub and Pi were not available for those checks. Successful Actions runs establish container compatibility; the onboard checks in section B establish actual hardware behavior.
 
 ## Code layout
 
@@ -115,4 +139,4 @@ Local backend tests pass. The base image’s official architecture list includes
 
 For development tests, install `requirements.txt` in Python 3.11+ and run `python -m unittest discover -s tests -v`.
 
-References: [BlueOS extension development and manual installation](https://blueos.cloud/docs/stable/development/extensions/), [public catalog submission format](https://github.com/bluerobotics/BlueOS-Extensions-Repository), [official Python image architectures](https://github.com/docker-library/official-images/blob/master/library/python), [G2-USB-ISO](https://atlas-scientific.com/carrier-boards/electrically-isolated-usb-ezo-carrier-board/).
+References: [BlueOS extension development and manual installation](https://blueos.cloud/docs/stable/development/extensions/), [public catalog submission format](https://github.com/bluerobotics/BlueOS-Extensions-Repository), [official Python image architectures](https://github.com/docker-library/official-images/blob/master/library/python), [original isolated carrier](https://atlas-scientific.com/carrier-boards/electrically-isolated-ezo-carrier-board-gen-2/).

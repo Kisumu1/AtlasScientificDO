@@ -34,14 +34,14 @@ def prepare(env, root):
     registration.mkdir(parents=True, exist_ok=True)
     (registration / 'metadata.json').write_text(json.dumps(dict(
         name='Atlas Sensors', website=source, docker=image,
-        description='Atlas EZO dissolved oxygen over isolated USB: live readings, calibration and CSV logging.'), indent=2))
+        description='Atlas EZO dissolved oxygen on the original isolated carrier over I2C: live readings, calibration and CSV logging.'), indent=2))
     settings = (root / 'blueos-settings.json').read_text()
     (release / 'blueos-settings.json').write_text(settings)
     instructions = (f'BlueOS > Extensions > Installed > +\n\n'
                     f'Extension Identifier: {username}.atlas-sensors\n'
                     f'Extension Name: Atlas Sensors\nDocker image: {image}\nDocker tag: {version}\n'
                     f'Custom settings: paste blueos-settings.json from this artifact.\n\n'
-                    f'After installation, open Atlas Sensors in the BlueOS sidebar and choose the Atlas USB port.\n'
+                    f'After installation, open Atlas Sensors in the BlueOS sidebar and choose I2C, /dev/i2c-6 and address 97.\n'
                     f'The Pi chooses its matching ARM image automatically.\n\n'
                     f'Optional public Bazaar submission: add extension_logo.png next to metadata.json,\n'
                     f'and company_logo.png under repos/{username}/; submit repos/ to\n'

@@ -4,8 +4,8 @@
 <body>
 <header><div class="brand"><span class="mark">≈</span><div>ATLAS <span class="muted">/ BLUEOS</span><small>Water quality instruments</small></div></div><span class="badge" id="status">Connecting to dashboard…</span></header>
 <main>
-<div class="heading"><div><p class="eyebrow">SENSOR 01 · EZO-DO</p><h1>Dissolved oxygen</h1><p class="muted">G2-USB-ISO · Atlas Scientific</p></div><button id="record" class="primary" disabled>Start recording</button></div>
-<div id="notice" role="status" class="notice">Choose your USB port in Connection to begin.</div>
+<div class="heading"><div><p class="eyebrow">SENSOR 01 · EZO-DO</p><h1>Dissolved oxygen</h1><p class="muted">Isolated EZO carrier · Navigator I²C</p></div><button id="record" class="primary" disabled>Start recording</button></div>
+<div id="notice" role="status" class="notice">Choose the I²C bus in Connection to begin.</div>
 <div id="message" role="alert" class="notice error" hidden></div>
 <section class="metrics" aria-label="Current measurements">
 <article class="card reading"><p class="eyebrow">OXYGEN CONCENTRATION</p><div><strong id="mg">—</strong><span class="unit">mg/L</span></div><p id="freshness" class="muted">Waiting for a reading</p></article>
@@ -15,9 +15,10 @@
 <section class="card trend"><div class="section-title"><div><h2>Oxygen over time</h2><p class="muted">Current connection · up to 1,800 readings</p></div><label class="inline">Show <select id="metric"><option value="mg_l">mg/L</option><option value="saturation_pct">% saturation</option></select></label></div><canvas id="chart" role="img" aria-label="Dissolved oxygen trend chart"></canvas><div class="chart-footer"><span id="chart-start">Waiting for readings</span><span id="chart-end">Time</span></div></section>
 <div class="bottom-grid">
 <section class="card"><h2>Connection & compensation</h2><form id="settings">
-<label>Data source<select id="mode"><option value="hardware">USB sensor · real measurements</option><option value="demo">Demo · simulated measurements</option></select></label>
-<div class="port-row"><label>USB serial port<input id="port" list="ports" placeholder="Select or enter /dev/ttyUSB0"><datalist id="ports"></datalist></label><button type="button" id="refresh">Find ports</button></div><p id="port-help" class="muted small">Select only the Atlas USB board. A stable /dev/serial/by-id/ path is preferred.</p>
-<div class="form-grid"><label>Baud rate<select id="baud"><option>300</option><option>1200</option><option>2400</option><option selected>9600</option><option>19200</option><option>38400</option><option>57600</option><option>115200</option></select></label><label>Read interval (seconds)<input id="interval_s" type="number" min="1" max="60" step="1" value="2" required></label></div>
+<label>Data source<select id="mode"><option value="hardware">Sensor · real measurements</option><option value="demo">Demo · simulated measurements</option></select></label>
+<label>Connection type<select id="transport"><option value="i2c">I²C · original isolated carrier / Navigator</option><option value="uart">UART · existing serial adapter</option></select></label>
+<div class="port-row"><label><span id="port-label">I²C bus device</span><input id="port" list="ports" placeholder="/dev/i2c-6"><datalist id="ports"></datalist></label><button type="button" id="refresh">Find devices</button></div><p id="port-help" class="muted small">Navigator external I²C uses /dev/i2c-6. Device listing does not scan sensor addresses.</p>
+<div class="form-grid"><label id="address-field">I²C address (decimal; 0x61 = 97)<input id="i2c_address" type="number" min="8" max="119" step="1" value="97" required></label><label id="baud-field" hidden>Baud rate<select id="baud"><option>300</option><option>1200</option><option>2400</option><option selected>9600</option><option>19200</option><option>38400</option><option>57600</option><option>115200</option></select></label><label>Read interval (seconds)<input id="interval_s" type="number" min="1" max="60" step="1" value="2" required></label></div>
 <div class="form-grid"><label>Water temperature (°C)<input id="temperature_c" type="number" min="0" max="50" step="0.1" value="20" required></label><label>Salinity (ppt)<input id="salinity_ppt" type="number" min="0" max="42" step="0.1" value="0" required></label></div>
 <label>Atmospheric pressure (kPa)<input id="pressure_kpa" type="number" min="50" max="150" step="0.1" value="101.3" required></label><p class="small muted">Use atmospheric pressure at the water surface, not ROV depth pressure. Default values must be checked for your deployment.</p>
 <button class="primary" id="save" type="submit">Save & connect</button><p class="small muted" id="identity">No sensor identified</p></form>
@@ -25,5 +26,5 @@
 <div class="right-stack"><section class="card"><h2>Recordings</h2><p class="muted">Saved onboard. Download a CSV for analysis.</p><p id="record-state" class="small">Recording is stopped.</p><div id="sessions" class="sessions"><p class="muted">No recordings yet.</p></div></section>
 <section class="card"><h2>Calibration</h2><p class="muted">Prepare the probe using Atlas’s calibration procedure and wait for stable readings before continuing.</p><p class="small muted">Air calibration uses a prepared probe exposed to air. Zero calibration requires zero-oxygen solution. Calibration changes the sensor’s saved calibration.</p><a href="https://files.atlas-scientific.com/DO_EZO_Datasheet.pdf" target="_blank" rel="noopener">Open Atlas calibration instructions ↗</a><div class="actions"><button id="cal-air" disabled>Calibrate in air</button><button id="cal-zero" disabled>Calibrate zero</button></div></section></div>
 </div>
-<footer>Atlas Sensors · BlueOS extension <span>Onboard monitoring · USB serial · UTC data exports</span></footer>
+<footer>Atlas Sensors · BlueOS extension <span>Onboard monitoring · Navigator I²C · UTC data exports</span></footer>
 </main><script src="app.js"></script></body></html>

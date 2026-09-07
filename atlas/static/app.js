@@ -1,7 +1,14 @@
 'use strict';
 const $ = id => document.getElementById(id);
 let state, initialized = false, busy = false;
-const fields = ['mode','port','baud','interval_s','temperature_c','salinity_ppt','pressure_kpa'];
+const fields = ['mode','transport','port','baud','i2c_address','interval_s','temperature_c','salinity_ppt','pressure_kpa'];
+function connectionUI() {
+  const i2c = $('transport').value === 'i2c';
+  $('address-field').hidden = !i2c; $('baud-field').hidden = i2c;
+  $('port-label').textContent = i2c ? 'I²C bus device' : 'Serial device';
+  $('port').placeholder = i2c ? '/dev/i2c-6' : '/dev/ttyUSB0';
+  $('port-help').textContent = i2c ? 'Navigator external I²C uses /dev/i2c-6. EZO-DO default address: 97 (0x61). Listing buses does not scan sensor addresses.' : 'Select only the serial device connected to the EZO-DO.';
+}
 function message(text = '') { $('message').hidden = !text; $('message').textContent = text; }
 async function api(path, data) {
   const options = {signal: AbortSignal.timeout(25000)};
@@ -36,12 +43,12 @@ function chart() {
 }
 function render(s) {
   state=s;
-  if (!initialized) {fields.forEach(k=>$(k).value=s.config[k]);initialized=true;}
+  if (!initialized) {fields.forEach(k=>$(k).value=s.config[k]);initialized=true;connectionUI();}
   const demo=s.config.mode==='demo', live=s.status==='connected'&&!s.stale;
   $('status').textContent=demo?'DEMO · SIMULATED':live?'● SENSOR CONNECTED':s.status.toUpperCase();
   $('status').className='badge '+(demo?'demo':live?'live':'');
   $('notice').className='notice '+(demo?'demo':s.error?'error':'');
-  $('notice').textContent=demo?'Demo mode — all readings are simulated. No hardware data is being collected.':s.error||(!s.config.port?'Choose your Atlas USB port below, check compensation values, then Save & connect.':live?'Receiving measurements from your EZO-DO.':'Waiting for the sensor. Connection attempts repeat automatically.');
+  $('notice').textContent=demo?'Demo mode — all readings are simulated. No hardware data is being collected.':s.error||(!s.config.port?'Choose your sensor connection below, check compensation values, then Save & connect.':live?'Receiving measurements from your EZO-DO over '+s.config.transport.toUpperCase()+'.':'Waiting for the sensor. Connection attempts repeat automatically.');
   $('mg').textContent=live?s.latest.mg_l.toFixed(2):'—';$('sat').textContent=live?s.latest.saturation_pct.toFixed(1):'—';
   $('freshness').textContent=s.latest?(s.stale?'Last reading is stale · ':'Updated ')+Math.round(s.age_s)+' seconds ago':'Waiting for a reading';
   $('ctx-temp').textContent=s.config.temperature_c+' °C';$('ctx-sal').textContent=s.config.salinity_ppt+' ppt';$('ctx-pressure').textContent=s.config.pressure_kpa+' kPa';
@@ -57,8 +64,9 @@ function render(s) {
   chart();
 }
 async function update(){render(await api('api/state'));}
-async function refreshPorts(){const ports=await api('api/ports');$('ports').replaceChildren();ports.forEach(p=>{const o=document.createElement('option');o.value=p.device;o.label=p.description;$('ports').append(o);});$('port-help').textContent=ports.length?ports.map(p=>p.device+' — '+p.description).join(' · '):'No serial ports found. Check the cable and the extension’s USB device mapping.';}
-$('settings').addEventListener('submit',e=>{e.preventDefault();action(async()=>{const config=Object.fromEntries(fields.map(k=>[k,['mode','port'].includes(k)?$(k).value.trim():Number($(k).value)]));if(config.mode==='hardware'&&!config.port)throw new Error('Choose the Atlas USB serial port first');await api('api/config',config);});});
+async function refreshPorts(){const ports=await api('api/ports?transport='+$('transport').value);$('ports').replaceChildren();ports.forEach(p=>{const o=document.createElement('option');o.value=p.device;o.label=p.description;$('ports').append(o);});$('port-help').textContent=ports.length?ports.map(p=>p.device+' — '+p.description).join(' · '):'No matching devices found. Check Navigator bus availability and the extension’s device permissions.';}
+$('transport').addEventListener('change',()=>{$('port').value='';connectionUI();action(refreshPorts);});
+$('settings').addEventListener('submit',e=>{e.preventDefault();action(async()=>{const config=Object.fromEntries(fields.map(k=>[k,['mode','transport','port'].includes(k)?$(k).value.trim():Number($(k).value)]));if(config.mode==='hardware'&&!config.port)throw new Error('Choose the sensor bus or serial device first');await api('api/config',config);});});
 $('record').addEventListener('click',()=>action(()=>api('api/record',{enabled:!state.recording})));
 $('refresh').addEventListener('click',()=>action(refreshPorts));
 for(const kind of ['air','zero'])$('cal-'+kind).addEventListener('click',()=>{if(confirm(kind==='air'?'Apply air calibration now? Confirm the probe is prepared according to Atlas instructions, exposed to air, and readings are stable. This changes saved sensor calibration.':'Apply zero calibration now? Confirm the probe is in zero-oxygen solution and readings are stable. This changes saved sensor calibration.'))action(()=>api('api/calibrate',{kind,confirmed:true}));});

@@ -1,5 +1,6 @@
 """Sensor drivers. Add future Atlas drivers here without changing the HTTP API."""
 import math
+import os
 import time
 
 import serial
@@ -103,6 +104,67 @@ class EzoDO:
 
     def close(self):
         self.serial.close()
+
+
+class LinuxI2CBus:
+    """Raw Linux I2C transactions; no SMBus register/length bytes are inserted."""
+    def __init__(self, path, address):
+        import fcntl  # Linux only, imported lazily so desktop demo/tests still work.
+        self.fd = os.open(path, os.O_RDWR)
+        try:
+            fcntl.ioctl(self.fd, 0x0703, address)  # I2C_SLAVE; never force a claimed address.
+        except Exception:
+            self.close()
+            raise
+
+    def write(self, data):
+        if os.write(self.fd, data) != len(data):
+            raise SensorError('Incomplete I2C command')
+
+    def read(self, length):
+        return os.read(self.fd, length)
+
+    def close(self):
+        os.close(self.fd)
+
+
+class EzoDOI2C(EzoDO):
+    """EZO-DO on the original isolated carrier, connected to Navigator I2C."""
+    def __init__(self, path, address):
+        self.bus = LinuxI2CBus(path, address)
+        try:
+            self.identity = self.command('i', prefix='?i,')[0]
+            if not self.identity.upper().startswith('?I,D.O.,'):
+                raise SensorError('Selected I2C address is not an Atlas EZO-DO circuit')
+            self.command('O,mg,1')
+            self.command('O,%,1')
+        except Exception:
+            self.close()
+            raise
+
+    def command(self, command, prefix=None, identify=False):
+        self.bus.write(command.encode('ascii'))
+        # Separate transactions with a STOP between them, as required by Atlas.
+        time.sleep(0.9 if command == 'R' or command.startswith('Cal') else 0.3)
+        for attempt in range(21):
+            response = self.bus.read(64)
+            if not response:
+                raise SensorError('Empty I2C response')
+            status = response[0]
+            if status == 254:
+                time.sleep(0.1)
+                continue
+            if status != 1:
+                description = {2: 'command rejected', 255: 'no data available'}.get(status, 'unknown status')
+                raise SensorError(f'EZO I2C {description} ({status})')
+            payload = response[1:].split(b'\x00', 1)[0].decode('ascii').strip()
+            if prefix and not payload.startswith(prefix):
+                raise SensorError('Unexpected EZO I2C response')
+            return [payload] if payload else []
+        raise SensorError('EZO I2C processing timeout')
+
+    def close(self):
+        self.bus.close()
 
 
 class DemoDO:

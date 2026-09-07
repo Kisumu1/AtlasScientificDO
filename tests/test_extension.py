@@ -8,7 +8,7 @@ from http.server import ThreadingHTTPServer
 from unittest.mock import patch
 
 from atlas.__main__ import handler
-from atlas.sensors import EzoDO, SensorError, parse_do
+from atlas.sensors import EzoDO, EzoDOI2C, SensorError, parse_do
 from atlas.service import DEFAULTS, Service, validate_config
 
 
@@ -92,6 +92,51 @@ class ProtocolTests(unittest.TestCase):
             driver.read()
 
 
+class I2CTests(unittest.TestCase):
+    @patch('atlas.sensors.time.sleep')
+    def test_identity_setup_read_and_compensation(self, sleep):
+        with patch('atlas.sensors.LinuxI2CBus') as factory:
+            bus = factory.return_value
+            bus.read.side_effect = [b'\x01?i,D.O.,2.14\x00', b'\x01\x00', b'\x01\x00',
+                                    b'\xfe', b'\x018.12,91.3\x00',
+                                    b'\x01\x00', b'\x01\x00', b'\x01\x00',
+                                    b'\x01\x00', b'\x01?Cal,1\x00']
+            driver = EzoDOI2C('/dev/i2c-6', 97)
+            factory.assert_called_once_with('/dev/i2c-6', 97)
+            self.assertEqual(driver.read(), dict(mg_l=8.12, saturation_pct=91.3))
+            driver.compensate(DEFAULTS)
+            self.assertEqual(driver.calibrate('air'), 1)
+            commands = [c.args[0] for c in bus.write.call_args_list]
+            self.assertEqual(commands, [b'i', b'O,mg,1', b'O,%,1', b'R', b'T,20.0',
+                                        b'S,0.0,ppt', b'P,101.3', b'Cal', b'Cal,?'])
+            # No CR, UART response commands, or SMBus register prefix on I2C.
+            self.assertIn(unittest.mock.call(0.9), sleep.call_args_list)
+            self.assertIn(unittest.mock.call(0.1), sleep.call_args_list)
+            driver.close()
+            bus.close.assert_called_once()
+
+    @patch('atlas.sensors.time.sleep')
+    def test_errors_and_busy_timeout(self, _):
+        for response in (b'\x02', b'\xff', b'\x00', b'', b'\xfe'):
+            with self.subTest(response=response), patch('atlas.sensors.LinuxI2CBus') as factory:
+                bus = factory.return_value
+                bus.read.return_value = response
+                driver = EzoDOI2C.__new__(EzoDOI2C)
+                driver.bus = bus
+                with self.assertRaises(SensorError):
+                    driver.read()
+                self.assertLessEqual(bus.read.call_count, 21)
+
+    @patch('atlas.sensors.time.sleep')
+    def test_wrong_identity_closes_bus_without_configuration(self, _):
+        with patch('atlas.sensors.LinuxI2CBus') as factory:
+            factory.return_value.read.return_value = b'\x01?i,pH,2.1\x00'
+            with self.assertRaises(SensorError):
+                EzoDOI2C('/dev/i2c-6', 97)
+            factory.return_value.write.assert_called_once_with(b'i')
+            factory.return_value.close.assert_called_once()
+
+
 class ServiceTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -132,7 +177,7 @@ class ServiceTests(unittest.TestCase):
 
     def test_disconnect_and_reconnect_do_not_fake_values(self):
         s = self.service
-        s.configure(dict(DEFAULTS, port='/dev/test'))
+        s.configure(dict(DEFAULTS, port='/dev/test', transport='uart'))
         with patch('atlas.service.EzoDO') as factory:
             sensor = factory.return_value
             sensor.identity = '?i,D.O.,2.14'
@@ -158,6 +203,34 @@ class ServiceTests(unittest.TestCase):
         self.service.tick()
         with self.assertRaises(ValueError):
             self.service.calibrate('air')
+
+    def test_i2c_service_routing_and_address_validation(self):
+        s = self.service
+        s.configure(dict(DEFAULTS, port='/dev/i2c-6'))
+        with patch('atlas.service.EzoDOI2C') as factory:
+            sensor = factory.return_value
+            sensor.identity = '?i,D.O.,2.14'
+            sensor.calibration.return_value = 1
+            sensor.read.return_value = dict(mg_l=8.2, saturation_pct=90)
+            s.tick()
+            factory.assert_called_once_with('/dev/i2c-6', 97)
+            self.assertFalse(s.state()['stale'])
+        for change in (dict(i2c_address=128), dict(i2c_address=True),
+                       dict(port='/dev/ttyUSB0'), dict(transport='invalid')):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                validate_config(dict(DEFAULTS, **change))
+
+    def test_old_usb_settings_migrate_without_changing_transport(self):
+        old = dict(DEFAULTS, port='/dev/ttyUSB0')
+        del old['transport']
+        del old['i2c_address']
+        self.service.config_path.write_text(json.dumps(old))
+        other = Service(self.tmp.name)
+        try:
+            self.assertEqual(other.config['transport'], 'uart')
+            self.assertEqual(other.config['port'], '/dev/ttyUSB0')
+        finally:
+            other.close()
 
     def test_http_ui_state_control_and_export(self):
         server = ThreadingHTTPServer(('127.0.0.1', 0), handler(self.service))
