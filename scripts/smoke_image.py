@@ -19,7 +19,7 @@ assert all(k in registration for k in ('description', 'icon', 'company', 'versio
 with urllib.request.urlopen('http://127.0.0.1:8097/api/state') as response:
     state = json.load(response)
 assert state['config']['mode'] == 'hardware', 'Image must never start in demo mode'
-assert state['config']['transport'] == 'i2c', 'Original carrier must default to I2C'
+assert state['config']['transport'] == 'uart', 'New installations must default to the USB carrier'
 assert state['config']['i2c_address'] == 97
 assert state['latest'] is None, 'Unconnected sensor must not report measurements'
 with urllib.request.urlopen('http://127.0.0.1:8097/') as response:
