@@ -2,6 +2,12 @@ name: Build and publish BlueOS extension
 
 on:
   workflow_dispatch:
+    inputs:
+      registry:
+        description: Where to publish (ghcr uses your GitHub account)
+        type: choice
+        default: ghcr
+        options: [ghcr, dockerhub]
 
 permissions:
   contents: read
@@ -15,11 +21,11 @@ jobs:
       matrix:
         platform: [linux/arm/v7, linux/arm64]
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@v6
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
       - name: Build architecture test image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: ${{ matrix.platform }}
@@ -29,32 +35,45 @@ jobs:
         env:
           ATLAS_PLATFORM: ${{ matrix.platform }}
         run: |
-          docker run --rm --platform "$ATLAS_PLATFORM" -v "$PWD/tests:/tests:ro" atlas-pi-test:local python -m unittest discover -s /tests -v
+          docker run --rm --platform "$ATLAS_PLATFORM" -v "$PWD/tests:/tests:ro" -v "$PWD/scripts:/app/scripts:ro" atlas-pi-test:local python -m unittest discover -s /tests -v
           docker run -d --name atlas-smoke --platform "$ATLAS_PLATFORM" atlas-pi-test:local
           trap 'docker logs atlas-smoke; docker rm -f atlas-smoke' EXIT
           docker exec -i atlas-smoke python - < scripts/smoke_image.py
 
   publish:
-    name: Publish multi-architecture extension to Docker Hub
+    name: Publish multi-architecture extension
     needs: test-pi-images
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Prepare version and BlueOS metadata
         id: meta
         env:
+          REGISTRY: ${{ inputs.registry }}
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           MY_NAME: ${{ vars.MY_NAME }}
           MY_EMAIL: ${{ vars.MY_EMAIL }}
         run: python3 scripts/prepare_release.py
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - name: Sign in to GitHub Container Registry
+        if: inputs.registry != 'dockerhub'
+        uses: docker/login-action@v4
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Sign in to Docker Hub
+        if: inputs.registry == 'dockerhub'
+        uses: docker/login-action@v4
+        with:
+          username: ${{ steps.meta.outputs.username }}
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Build and push both Pi architectures
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/arm/v7,linux/arm64
@@ -74,8 +93,8 @@ jobs:
         run: |
           docker buildx imagetools inspect "$ATLAS_IMAGE:$ATLAS_VERSION" --raw > manifest.json
           python3 scripts/check_manifest.py manifest.json
-      - name: Provide BlueOS install fields and Bazaar metadata
-        uses: actions/upload-artifact@v4
+      - name: Provide BlueOS install fields (and Docker Hub Bazaar metadata)
+        uses: actions/upload-artifact@v6
         with:
           name: blueos-install-and-bazaar
           path: release/

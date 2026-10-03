@@ -1,6 +1,6 @@
 # Atlas Sensors — BlueOS extension
 
-An onboard BlueOS extension for the **Atlas EZO-DO circuit on the original ISCCB-2 isolated carrier from the dissolved oxygen kit, connected to a Navigator over I²C**. The Raspberry Pi runs the driver, logging and web server. The interface opens inside BlueOS. The deployment target is the BlueOS Extensions Manager.
+An onboard BlueOS extension for the **Atlas EZO-DO circuit**, connected through an Atlas USB serial carrier or the original ISCCB-2 isolated carrier over I²C. The Raspberry Pi runs the driver, logging and web server. The interface opens inside BlueOS. The deployment target is the BlueOS Extensions Manager.
 
 Current release: **0.1.2-beta.1**. Only dissolved oxygen is implemented. This is an independent community integration, not an official Atlas Scientific product.
 
@@ -18,54 +18,46 @@ No Python, Node or other application dependencies need to be installed manually 
 
 ## A. Build and publish the installable image
 
-This uses GitHub’s build machines, so Docker Desktop is not needed on your computer.
+This uses GitHub’s build machines and **GitHub Container Registry (GHCR)**. No Docker Hub account, Docker Desktop, manually created token, or Actions variables are needed for this path. The workflow uses GitHub's automatic `GITHUB_TOKEN` with `packages: write` permission, scoped to the publish job.
 
 1. Create a **public GitHub repository**, for example `blueos-atlas-sensors`.
 2. Upload the **contents** of this source folder to its root. The repository root must contain `Dockerfile`, `VERSION`, `atlas/`, `scripts/`, `tests/`, and `.github/workflows/publish.yml`. Do not upload just the ZIP or nest everything inside an extra folder. Make sure the hidden `.github` folder is included. If using GitHub’s web uploader, you can create `.github/workflows/publish.yml` using **Add file → Create new file** and paste the included workflow if the folder was omitted.
-3. In Docker Hub, create a **public** repository named `blueos-atlas-sensors`.
-4. Create a Docker Hub access token with read/write permission. In the GitHub repository, open **Settings → Secrets and variables → Actions → Secrets**, and add:
-
-   | Secret | Value |
-   | --- | --- |
-   | `DOCKER_USERNAME` | Your Docker Hub username, not your email |
-   | `DOCKER_PASSWORD` | The Docker Hub access token |
-
-5. In the same GitHub settings area, select **Variables** and add:
-
-   | Variable | Value |
-   | --- | --- |
-   | `MY_NAME` | Your name or the name you maintain the extension under |
-   | `MY_EMAIL` | A contact email you are comfortable including in public extension metadata |
-
-6. Open **Actions → Build and publish BlueOS extension → Run workflow**, using the branch containing your files.
-7. Wait for **both Pi image test jobs and the publish job** to pass. The workflow builds and runs tests inside both ARM images using QEMU, checks onboard hardware-mode startup without a sensor, then publishes the multi-architecture image. It finally verifies that Docker Hub’s manifest includes ARMv7 and ARM64.
-8. From the completed workflow, download the **blueos-install-and-bazaar** artifact. Its `INSTALL.txt` contains the actual install fields for your account. The Docker Hub tag will be:
+3. Open **Actions → Build and publish BlueOS extension → Run workflow**, select branch **main** and leave **registry** set to **ghcr**. Start a new run; re-running the old failed run uses its old code.
+4. Wait for **both Pi image test jobs and the publish job** to pass. The workflow runs tests inside both ARM images using QEMU, checks onboard startup without a sensor, publishes the image and verifies its manifest includes ARMv7 and ARM64.
+5. Open your GitHub **profile → Packages → blueos-atlas-sensors → Package settings → Change visibility → Public**, and confirm. **A public source repository does not automatically make the container package public.** BlueOS needs a public package to download it without credentials. For this repository, the package settings are [here](https://github.com/users/Kisumu1/packages/container/blueos-atlas-sensors/settings) after the first successful publish.
+6. From the completed workflow, download the **blueos-install-and-bazaar** artifact. Its `INSTALL.txt` contains the actual install fields for your account, and `blueos-settings.json` contains the settings to paste into BlueOS. For this repository the image tag is:
 
    ```text
-   YOUR_DOCKER_USERNAME/blueos-atlas-sensors:0.1.2-beta.1
+   ghcr.io/kisumu1/blueos-atlas-sensors:0.1.2-beta.1
    ```
 
-The workflow publishes only when manually run. For later changes, update `VERSION`, commit, and run it again. Use a new version rather than reusing a published tag.
+GHCR publishing uses the GitHub repository owner and its GitHub noreply address for the required metadata labels; the source repository's Issues page is the support link. Old Docker Hub secrets and placeholder `MY_NAME`/`MY_EMAIL` variables are unused when `registry=ghcr`.
+
+The workflow publishes only when manually run. For later changes, update `VERSION`, commit, and run it again. Use a new version rather than reusing a published tag. See section C for optional Docker Hub publishing.
+
+If installation reports `denied` or `unauthorized`, confirm the **container package** visibility is Public. If you still see `DOCKER_USERNAME must be ...`, you selected Docker Hub or re-ran the old workflow; start a new run on main with registry `ghcr`.
+
+References: [GitHub Container Registry authentication and visibility](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry), [package visibility settings](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility). BlueOS's [manual installer](https://github.com/bluerobotics/BlueOS/blob/1.4.3/core/services/kraken/extension/extension.py) passes the supplied image reference to Docker, which allows a `ghcr.io/...` image.
 
 ## B. Put it on your Pi’s Extensions page
 
 You can install your own image without waiting for public Bazaar approval.
 
-1. Wire the original isolated carrier to the Navigator as described in **Navigator wiring** below. The EZO-DO must be in **I²C mode** (blue standby LED), normally address **97 / 0x61**.
+1. For your **USB EZO carrier**, connect the EZO-DO and probe to the carrier and plug its USB cable into the **Pi running BlueOS**. The sensor must be in **UART mode** (green standby LED), normally **9600 baud**. For the original carrier, use the I²C connection described below instead.
 2. Give the Pi internet access for the download and open its BlueOS interface.
 3. Go to **Extensions → Installed → +** (the Add button).
 4. Fill in:
 
    | BlueOS field | Value |
    | --- | --- |
-   | Extension Identifier | `YOUR_DOCKER_USERNAME.atlas-sensors` |
+   | Extension Identifier | `kisumu1.atlas-sensors` |
    | Extension Name | `Atlas Sensors` |
-   | Docker image | `YOUR_DOCKER_USERNAME/blueos-atlas-sensors` |
+   | Docker image | `ghcr.io/kisumu1/blueos-atlas-sensors` |
    | Docker tag | `0.1.2-beta.1` |
    | Custom settings | Paste the complete `blueos-settings.json` from this package or workflow artifact |
 
 5. Submit the install. BlueOS downloads the matching ARM image, creates its container and manages its lifecycle. **Atlas Sensors** should appear on the Installed page and then in the sidebar after service discovery.
-6. Open **Atlas Sensors** from the BlueOS sidebar. Select **Sensor · real measurements**, connection **I²C**, bus **`/dev/i2c-6`**, and address **`97`** (decimal, equivalent to `0x61`). The app lists Linux bus devices without scanning other sensors.
+6. Open **Atlas Sensors** from the BlueOS sidebar. Select **Sensor · real measurements**, connection **UART / USB serial**, your listed USB device (often `/dev/ttyUSB0`), and **9600 baud** unless you previously changed it. Click **Find devices** if needed. For an I²C connection instead, select **I²C**, bus **`/dev/i2c-6`**, and address **`97`** (decimal, equivalent to `0x61`).
 7. Set water temperature, salinity and surface atmospheric pressure, then click **Save & connect**. Baud rate does not apply to I²C.
 8. Verify the identified EZO-DO, real readings, calibration status, recording/export and recovery after an extension restart.
 
@@ -75,17 +67,17 @@ The default port is allocated by BlueOS; there is no need to use localhost or ma
 
 Power the vehicle off before wiring. Use a Navigator **external I²C connector (bus 6)**, not the internal sensor bus. Match signal labels against the Navigator pinout; do not infer connector order from wire colors.
 
-| Navigator external I²C signal | Original Atlas carrier pin |
+| Host-side connection | Original Atlas carrier pin |
 | --- | --- |
-| 3.3 V | VCC |
-| GND | GND (host-side ground) |
-| SDA | TX / SDA |
-| SCL | RX / SCL |
+| Regulated 3.3 V supply | VCC |
+| Common host GND | GND (host-side ground) |
+| Navigator external SDA | TX / SDA |
+| Navigator external SCL | RX / SCL |
 | No connection | OFF — leave unconnected |
 
-Connect the DO probe to the carrier’s SMA connector. The carrier has pull-ups and supports a 3.3 V input; using the Navigator 3.3 V supply keeps the host-side pull-ups at the correct level. Do not connect the isolated probe ground to host ground. Keep the I²C wiring short inside the dry enclosure.
+Connect the DO probe to the carrier’s SMA connector. The carrier has host-side pull-ups tied to VCC; powering it at 3.3 V keeps them at 3.3 V. Verify your Navigator revision's connector power voltage against its actual pinout before wiring. If its power pin supplies 5 V, use a separate regulated 3.3 V supply with common host ground, or a suitable I²C level converter; do not assume that pin supplies 3.3 V. Do not connect the isolated probe ground to host ground. Keep the I²C wiring short inside the dry enclosure. A USB carrier avoids this wiring.
 
-**Switch the EZO-DO to I²C before connecting it to the Navigator bus.** It ships in UART mode. Follow the Atlas EZO-DO datasheet’s **Manual switching to I²C** procedure (printed page 36); this restores the default I²C address to 97. Use the circuit-side pins/PGND shown in that procedure, not a guessed short across the carrier’s host-side pins. Alternatively, if you already have a working UART connection, send `I2C,97` through that connection. The extension does not automatically change device protocol or address. Blue standby LED indicates I²C mode.
+**Switch the EZO-DO to I²C before connecting it to the Navigator bus.** It ships in UART mode. Follow the Atlas EZO-DO datasheet’s **Manual switching to I²C** procedure; this restores the default I²C address to 97. Use the circuit-side pins/PGND shown in that procedure, not a guessed short across the carrier’s host-side pins. Alternatively, if you already have a working UART connection, send `I2C,97` through that connection. The extension does not automatically change device protocol or address. Blue standby LED indicates I²C mode. Keep UART mode for a USB serial carrier.
 
 Blue Robotics documents external bus 6 for the Navigator. If `/dev/i2c-6` is absent, check the Navigator/BlueOS configuration; do not switch to an internal bus or change boot overlays at random.
 
@@ -103,7 +95,14 @@ The persistent folder is `/usr/blueos/extensions/atlas-sensors` on the Pi, mount
 
 ## C. Make it appear in the public Extensions store
 
-The Installed page is your own vehicle’s installation list. The public Bazaar/store catalog requires a repository submission and maintainer acceptance.
+The Installed page is your own vehicle’s installation list. GHCR is suitable for the manual install above. The public Bazaar/store catalog currently expects images hosted on **Docker Hub**, plus a repository submission and maintainer acceptance. Do not submit GHCR-only registration metadata as though it were a Docker Hub image.
+
+To publish to Docker Hub later:
+
+1. Create a Docker Hub account and a **public** repository named `blueos-atlas-sensors`.
+2. In GitHub **Settings → Secrets and variables → Actions → Secrets**, set `DOCKER_USERNAME` to your actual Docker ID (not an email or URL) and `DOCKER_PASSWORD` to a Docker Hub access token with read/write permission.
+3. Under **Variables**, set `MY_NAME` to your maintainer name and `MY_EMAIL` to a real contact email suitable for public metadata. The literal values `name` and `email` are placeholders.
+4. Run a **new** workflow on main and select **registry: dockerhub**. Its artifact includes Docker Hub install fields and `repos/YOUR_DOCKER_USERNAME/atlas-sensors/metadata.json`. The Docker Hub image is `YOUR_DOCKER_USERNAME/blueos-atlas-sensors:0.1.2-beta.1`.
 
 After testing on your Pi and sensor:
 
@@ -113,7 +112,7 @@ After testing on your Pi and sensor:
 4. Open a pull request to the BlueOS repository. Include what it supports and your Pi/BlueOS/sensor test results.
 5. Address review feedback. Once maintainers merge it and the catalog updates, users can find and install it from the public Extensions store.
 
-Publishing to Docker Hub alone does not create a public store listing. You do not need a Bazaar pull request to do section B.
+Publishing a container image alone does not create a public store listing. You do not need a Bazaar pull request to do section B.
 
 ## Onboard behavior and limitations
 
@@ -129,9 +128,9 @@ Publishing to Docker Hub alone does not create a public store listing. You do no
 
 ## Validation status
 
-Local backend tests pass. The base image’s official architecture list includes ARM32v7 and ARM64v8. The supplied workflow is configured to build and test both Pi images before publishing.
+Local backend and release metadata tests pass. Both **ARMv7 and ARM64** image builds, backend tests and onboard startup checks passed in [the October 3, 2026 Actions run](https://github.com/Kisumu1/AtlasScientificDO/actions/runs/37154324868). That run failed before publishing because Docker Hub configuration was invalid; the updated workflow uses GHCR by default and current actions with Node.js 24 support.
 
-**The ARM build workflow has not been run here, no image has been published to your account, and physical Navigator/I²C operation has not been verified.** Docker and access to your GitHub, Docker Hub and Pi were not available for those checks. Successful Actions runs establish container compatibility; the onboard checks in section B establish actual hardware behavior.
+Physical USB and Navigator/I²C operation have not been verified. Successful Actions runs establish container compatibility; the onboard checks in section B establish actual hardware behavior.
 
 ## Code layout
 

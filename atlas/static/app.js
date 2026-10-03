@@ -64,7 +64,7 @@ function render(s) {
   chart();
 }
 async function update(){render(await api('api/state'));}
-async function refreshPorts(){const ports=await api('api/ports?transport='+$('transport').value);$('ports').replaceChildren();ports.forEach(p=>{const o=document.createElement('option');o.value=p.device;o.label=p.description;$('ports').append(o);});$('port-help').textContent=ports.length?ports.map(p=>p.device+' — '+p.description).join(' · '):'No matching devices found. Check Navigator bus availability and the extension’s device permissions.';}
+async function refreshPorts(){const ports=await api('api/ports?transport='+$('transport').value);$('ports').replaceChildren();ports.forEach(p=>{const o=document.createElement('option');o.value=p.device;o.label=p.description;$('ports').append(o);});$('port-help').textContent=ports.length?ports.map(p=>p.device+' — '+p.description).join(' · '):'No matching devices found. Check the sensor connection, selected connection type, and the extension’s device permissions.';}
 $('transport').addEventListener('change',()=>{$('port').value='';connectionUI();action(refreshPorts);});
 $('settings').addEventListener('submit',e=>{e.preventDefault();action(async()=>{const config=Object.fromEntries(fields.map(k=>[k,['mode','transport','port'].includes(k)?$(k).value.trim():Number($(k).value)]));if(config.mode==='hardware'&&!config.port)throw new Error('Choose the sensor bus or serial device first');await api('api/config',config);});});
 $('record').addEventListener('click',()=>action(()=>api('api/record',{enabled:!state.recording})));
