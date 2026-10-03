@@ -194,7 +194,7 @@ class ServiceTests(unittest.TestCase):
         sensor.calibration.return_value = 1
         sensor.read.return_value = dict(mg_l=8.12, saturation_pct=91.3)
         with patch.object(self.service, 'ports', return_value=[dict(device='/dev/i2c-1'), dict(device='/dev/i2c-6')]), patch('atlas.service.EzoDOI2C', return_value=sensor) as factory:
-            self.service.find_and_connect(dict(DEFAULTS, i2c_address=98))
+            self.service.find_and_connect(dict(DEFAULTS, transport='i2c', i2c_address=98))
         factory.assert_called_once_with('/dev/i2c-6', 98)
 
     def test_usb_discovery_filters_onboard_ports_and_finds_nodes_without_sysfs(self):
@@ -276,7 +276,7 @@ class ServiceTests(unittest.TestCase):
 
     def test_i2c_service_routing_and_address_validation(self):
         s = self.service
-        s.configure(dict(DEFAULTS, port='/dev/i2c-6'))
+        s.configure(dict(DEFAULTS, transport='i2c', port='/dev/i2c-6'))
         with patch('atlas.service.EzoDOI2C') as factory:
             sensor = factory.return_value
             sensor.identity = '?i,D.O.,2.14'
@@ -288,7 +288,7 @@ class ServiceTests(unittest.TestCase):
         for change in (dict(i2c_address=128), dict(i2c_address=True),
                        dict(port='/dev/ttyUSB0'), dict(transport='invalid')):
             with self.subTest(change=change), self.assertRaises(ValueError):
-                validate_config(dict(DEFAULTS, **change))
+                validate_config(dict(dict(DEFAULTS, transport='i2c'), **change))
 
     def test_old_usb_settings_migrate_without_changing_transport(self):
         old = dict(DEFAULTS, port='/dev/ttyUSB0')

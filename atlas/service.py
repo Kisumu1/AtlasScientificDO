@@ -17,7 +17,7 @@ from .sensors import DemoDO, EzoDO, EzoDOI2C, SensorError
 
 DEFAULTS = dict(mode='hardware', port='', baud=9600, interval_s=2,
                 temperature_c=20.0, salinity_ppt=0.0, pressure_kpa=101.3,
-                transport='i2c', i2c_address=97)
+                transport='uart', i2c_address=97)
 FIELDS = ['timestamp_utc', 'mode', 'sensor', 'mg_l', 'saturation_pct',
           'temperature_c', 'salinity_ppt', 'pressure_kpa', 'calibration_points']
 

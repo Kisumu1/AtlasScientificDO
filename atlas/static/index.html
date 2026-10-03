@@ -1,30 +1,39 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Atlas Sensors · BlueOS</title><link rel="stylesheet" href="style.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Atlas DO · BlueOS</title><link rel="stylesheet" href="style.css"></head>
 <body>
-<header><div class="brand"><span class="mark">≈</span><div>ATLAS <span class="muted">/ BLUEOS</span><small>Water quality instruments</small></div></div><span class="badge" id="status">Connecting to dashboard…</span></header>
+<header><div class="brand">Atlas DO</div><span class="badge" id="status">Loading…</span></header>
 <main>
-<div class="heading"><div><p class="eyebrow">SENSOR 01 · EZO-DO</p><h1>Dissolved oxygen</h1><p class="muted">Atlas EZO · USB serial or I²C</p></div><button id="record" class="primary" disabled>Start recording</button></div>
-<div id="notice" role="status" class="notice">Choose your sensor connection below to begin.</div>
-<div id="message" role="alert" class="notice error" hidden></div>
-<section class="metrics" aria-label="Current measurements">
-<article class="card reading"><p class="eyebrow">OXYGEN CONCENTRATION</p><div><strong id="mg">—</strong><span class="unit">mg/L</span></div><p id="freshness" class="muted">Waiting for a reading</p></article>
-<article class="card reading"><p class="eyebrow">OXYGEN SATURATION</p><div><strong id="sat">—</strong><span class="unit">%</span></div><p class="muted">Percent saturation reported by the sensor</p></article>
-<article class="card context"><p class="eyebrow">MEASUREMENT CONTEXT</p><dl><dt>Temperature input</dt><dd id="ctx-temp">20 °C</dd><dt>Salinity input</dt><dd id="ctx-sal">0 ppt</dd><dt>Atmospheric pressure</dt><dd id="ctx-pressure">101.3 kPa</dd><dt>Calibration</dt><dd id="cal-status">Unknown</dd></dl><small class="muted">Compensation inputs are manually configured, not measured.</small></article>
-</section>
-<section class="card trend"><div class="section-title"><div><h2>Oxygen over time</h2><p class="muted">Current connection · up to 1,800 readings</p></div><label class="inline">Show <select id="metric"><option value="mg_l">mg/L</option><option value="saturation_pct">% saturation</option></select></label></div><canvas id="chart" role="img" aria-label="Dissolved oxygen trend chart"></canvas><div class="chart-footer"><span id="chart-start">Waiting for readings</span><span id="chart-end">Time</span></div></section>
-<div class="bottom-grid">
-<section class="card"><h2>Connection & compensation</h2><form id="settings">
-<label>Data source<select id="mode"><option value="hardware">Sensor · real measurements</option><option value="demo">Demo · simulated measurements</option></select></label>
-<label>Connection type<select id="transport"><option value="i2c">I²C · original isolated carrier / Navigator</option><option value="uart">UART / USB serial</option></select></label>
-<div class="port-row"><label><span id="port-label">I²C bus device</span><input id="port" list="ports" placeholder="/dev/i2c-6"><datalist id="ports"></datalist></label><button type="button" id="refresh">Find & connect</button></div><p id="port-help" class="muted small">Navigator external I²C uses /dev/i2c-6. Device listing does not scan sensor addresses.</p>
-<div class="form-grid"><label id="address-field">I²C address (decimal; 0x61 = 97)<input id="i2c_address" type="number" min="8" max="119" step="1" value="97" required></label><label id="baud-field" hidden>Baud rate<select id="baud"><option>300</option><option>1200</option><option>2400</option><option selected>9600</option><option>19200</option><option>38400</option><option>57600</option><option>115200</option></select></label><label>Read interval (seconds)<input id="interval_s" type="number" min="1" max="60" step="1" value="2" required></label></div>
+<div class="heading"><div><h1>Dissolved oxygen</h1><p class="muted">Connect your sensor to the BlueOS Pi by USB.</p></div></div>
+<form id="settings" class="card connection">
+<div class="connect-row"><div><h2>Your sensor</h2><p id="identity" class="small muted">No sensor connected</p></div><button type="button" class="primary" id="refresh">Find & connect</button></div>
+<p class="small muted">Uses the settings below. Check water temperature and salinity before measuring.</p>
+<details id="advanced"><summary>Sensor settings</summary><div class="details-content">
+<label>Connection<select id="transport"><option value="uart">USB carrier</option><option value="i2c">I²C · original carrier</option></select></label>
+<label><span id="port-label">USB device (optional)</span><input id="port" list="ports" placeholder="Choose automatically"><datalist id="ports"></datalist></label><p id="port-help" class="muted small">Find & connect chooses the sensor's USB port automatically.</p>
+<div class="form-grid"><label id="address-field" hidden>I²C address<input id="i2c_address" type="number" min="8" max="119" step="1" value="97" required></label><label id="baud-field">Baud rate<select id="baud"><option>300</option><option>1200</option><option>2400</option><option selected>9600</option><option>19200</option><option>38400</option><option>57600</option><option>115200</option></select></label><label>Read every (seconds)<input id="interval_s" type="number" min="1" max="60" step="1" value="2" required></label></div>
 <div class="form-grid"><label>Water temperature (°C)<input id="temperature_c" type="number" min="0" max="50" step="0.1" value="20" required></label><label>Salinity (ppt)<input id="salinity_ppt" type="number" min="0" max="42" step="0.1" value="0" required></label></div>
-<label>Atmospheric pressure (kPa)<input id="pressure_kpa" type="number" min="50" max="150" step="0.1" value="101.3" required></label><p class="small muted">Use atmospheric pressure at the water surface, not ROV depth pressure. Default values must be checked for your deployment.</p>
-<button class="primary" id="save" type="submit">Save & connect</button><p class="small muted" id="identity">No sensor identified</p></form>
+<label>Air pressure at the water surface (kPa)<input id="pressure_kpa" type="number" min="50" max="150" step="0.1" value="101.3" required></label>
+<p class="small muted">These values are entered manually. Use surface air pressure, not pressure at the ROV's depth.</p>
+<label>Measurements<select id="mode"><option value="hardware">Real sensor</option><option value="demo">Demo · simulated readings</option></select></label>
+<button id="save" type="submit">Apply settings</button>
+</div></details>
+</form>
+<div id="notice" role="status" class="notice">Click Find & connect to start.</div>
+<details id="error-details" class="technical" hidden><summary>Technical details</summary><pre id="error-raw"></pre></details>
+<div id="message" role="alert" class="notice error" hidden></div>
+<details id="message-details" class="technical" hidden><summary>Technical details</summary><pre id="message-raw"></pre></details>
+<section class="metrics" aria-label="Current measurements">
+<article class="card reading"><p class="eyebrow">DISSOLVED OXYGEN</p><div><strong id="mg">—</strong><span class="unit">mg/L</span></div><p id="freshness" class="muted">Waiting for a reading</p></article>
+<article class="card reading"><p class="eyebrow">SATURATION</p><div><strong id="sat">—</strong><span class="unit">%</span></div><p class="muted">Reported by your sensor</p></article>
 </section>
-<div class="right-stack"><section class="card"><h2>Recordings</h2><p class="muted">Saved onboard. Download a CSV for analysis.</p><p id="record-state" class="small">Recording is stopped.</p><div id="sessions" class="sessions"><p class="muted">No recordings yet.</p></div></section>
-<section class="card"><h2>Calibration</h2><p class="muted">Prepare the probe using Atlas’s calibration procedure and wait for stable readings before continuing.</p><p class="small muted">Air calibration uses a prepared probe exposed to air. Zero calibration requires zero-oxygen solution. Calibration changes the sensor’s saved calibration.</p><a href="https://files.atlas-scientific.com/DO_EZO_Datasheet.pdf" target="_blank" rel="noopener">Open Atlas calibration instructions ↗</a><div class="actions"><button id="cal-air" disabled>Calibrate in air</button><button id="cal-zero" disabled>Calibrate zero</button></div></section></div>
-</div>
-<footer>Atlas Sensors · BlueOS extension <span>Onboard monitoring · USB / I²C · UTC data exports</span></footer>
+<div class="record-row"><button id="record" disabled>Start recording</button><p id="record-state" class="small muted">Recording is stopped.</p></div>
+<details class="card expandable" id="trend"><summary>Reading history</summary><div class="details-content"><label class="inline">Show <select id="metric"><option value="mg_l">mg/L</option><option value="saturation_pct">% saturation</option></select></label><canvas id="chart" role="img" aria-label="Dissolved oxygen trend chart"></canvas><div class="chart-footer"><span id="chart-start">Waiting for readings</span><span id="chart-end">Time</span></div></div></details>
+<details class="card expandable"><summary>Saved recordings</summary><div class="details-content"><p class="small muted">Saved on the Pi. Download a CSV to your computer.</p><div id="sessions" class="sessions"><p class="muted">No recordings yet.</p></div></div></details>
+<details class="card expandable"><summary>Calibration & measurement details</summary><div class="details-content">
+<dl><dt>Water temperature</dt><dd id="ctx-temp">20 °C</dd><dt>Salinity</dt><dd id="ctx-sal">0 ppt</dd><dt>Air pressure</dt><dd id="ctx-pressure">101.3 kPa</dd><dt>Calibration</dt><dd id="cal-status">Unknown</dd></dl>
+<p class="small muted">Follow Atlas's probe preparation instructions and wait for stable readings before calibrating. Air calibration uses a prepared probe exposed to air. Zero calibration requires zero-oxygen solution. Both change the sensor's saved calibration.</p>
+<a href="https://files.atlas-scientific.com/DO_EZO_Datasheet.pdf" target="_blank" rel="noopener">Atlas calibration instructions ↗</a><div class="actions"><button id="cal-air" disabled>Calibrate in air</button><button id="cal-zero" disabled>Calibrate zero</button></div>
+</div></details>
+<footer>Atlas DO · BlueOS</footer>
 </main><script src="app.js"></script></body></html>

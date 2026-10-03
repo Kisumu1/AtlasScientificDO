@@ -2,7 +2,7 @@
 
 An onboard BlueOS extension for the **Atlas EZO-DO circuit**, connected through an Atlas USB serial carrier or the original ISCCB-2 isolated carrier over I²C. The Raspberry Pi runs the driver, logging and web server. The interface opens inside BlueOS. The deployment target is the BlueOS Extensions Manager.
 
-Current release: **0.1.2-beta.3**. Only dissolved oxygen is implemented. This is an independent community integration, not an official Atlas Scientific product.
+Current release: **0.1.2-beta.4**. Only dissolved oxygen is implemented. This is an independent community integration, not an official Atlas Scientific product.
 
 ## What makes this a BlueOS extension
 
@@ -28,7 +28,7 @@ This uses GitHub’s build machines and **GitHub Container Registry (GHCR)**. No
 6. From the completed workflow, download the **blueos-install-and-bazaar** artifact. Its `INSTALL.txt` contains the actual install fields for your account, and `blueos-settings.json` contains the settings to paste into BlueOS. For this repository the image tag is:
 
    ```text
-   ghcr.io/kisumu1/blueos-atlas-sensors:0.1.2-beta.3
+   ghcr.io/kisumu1/blueos-atlas-sensors:0.1.2-beta.4
    ```
 
 GHCR publishing uses the GitHub repository owner and its GitHub noreply address for the required metadata labels; the source repository's Issues page is the support link. Old Docker Hub secrets and placeholder `MY_NAME`/`MY_EMAIL` variables are unused when `registry=ghcr`.
@@ -53,19 +53,19 @@ You can install your own image without waiting for public Bazaar approval.
    | Extension Identifier | `kisumu1.atlas-sensors` |
    | Extension Name | `Atlas Sensors` |
    | Docker image | `ghcr.io/kisumu1/blueos-atlas-sensors` |
-   | Docker tag | `0.1.2-beta.3` |
+   | Docker tag | `0.1.2-beta.4` |
    | Custom settings | Paste the complete `blueos-settings.json` from this package or workflow artifact |
 
 5. Submit the install. BlueOS downloads the matching ARM image, creates its container and manages its lifecycle. **Atlas Sensors** should appear on the Installed page and then in the sidebar after service discovery.
-6. Open **Atlas Sensors** from the BlueOS sidebar. Select **Sensor · real measurements**, connection **UART / USB serial**, **9600 baud** unless you previously changed it, and check the compensation values. Click **Find & connect** to automatically identify the sensor, select its USB port, save the settings, and start readings. For an I²C connection instead, select **I²C**, bus **`/dev/i2c-6`**, and address **`97`** (decimal, equivalent to `0x61`).
-7. **Find & connect** needs no additional Save click. To change settings afterward or connect to a manually selected port, set water temperature, salinity and surface atmospheric pressure, then click **Save & connect**. Baud rate does not apply to I²C.
+6. Open **Atlas Sensors** from the BlueOS sidebar. Open **Sensor settings**, check the compensation values, and use **USB carrier** with **9600 baud** unless you previously changed it. Click **Find & connect** to automatically identify the sensor, select its USB port, save the settings, and start readings. For an I²C connection instead, select **I²C**, bus **`/dev/i2c-6`**, and address **`97`** (decimal, equivalent to `0x61`).
+7. **Find & connect** needs no additional Save click. To change settings afterward or connect to a manually selected port, set water temperature, salinity and surface atmospheric pressure, then click **Apply settings**. Baud rate does not apply to I²C.
 8. Verify the identified EZO-DO, real readings, calibration status, recording/export and recovery after an extension restart.
 
 The default port is allocated by BlueOS; there is no need to use localhost or manually start a server. Open it through BlueOS. Manage stop/start, restart, settings and uninstall through the Extensions Manager.
 
 ### USB connection troubleshooting
 
-`/dev/ttyAMA1` is an onboard UART, not the USB carrier. The extension does not grant access to onboard UARTs. Choose **UART / USB serial**, click **Find & connect** to identify, verify a reading, and automatically save the carrier's `/dev/ttyUSB...` device or `/dev/serial/by-id/...` entry. Start at 9600 baud unless you changed the EZO baud rate. USB listings are candidates; the driver verifies EZO-DO identity before applying settings.
+`/dev/ttyAMA1` is an onboard UART, not the USB carrier. The extension does not grant access to onboard UARTs. Choose **USB carrier**, click **Find & connect** to identify, verify a reading, and automatically save the carrier's `/dev/ttyUSB...` device or `/dev/serial/by-id/...` entry. Start at 9600 baud unless you changed the EZO baud rate. USB listings are candidates; the driver verifies EZO-DO identity before applying settings.
 
 If no USB device appears, check that the carrier is plugged into the BlueOS Pi with a USB data cable, then click Find & connect again. Disconnect/reconnect the carrier to see which entry disappears/reappears. Device discovery also checks the mounted `/dev` nodes when container sysfs metadata is missing. For this upgrade, replace Custom settings with this repository's `blueos-settings.json` to include ttyACM permissions.
 
@@ -91,7 +91,7 @@ Sources: [Atlas carrier pinout and isolation](https://files.atlas-scientific.com
 
 ### Upgrade from the USB version
 
-After publishing tag `0.1.2-beta.3`, edit the installed extension in BlueOS: select the new tag **and replace Custom settings with the updated `blueos-settings.json`**. Old settings only allow USB serial devices; the new settings also permit Linux I²C devices. Save/restart, then select I²C, `/dev/i2c-6`, and address 97 in the dashboard. Legacy saved settings are migrated as UART to avoid silently redirecting an existing connection. Stop recording before changing the connection. Recording files remain in the persistent data directory.
+After publishing tag `0.1.2-beta.4`, edit the installed extension in BlueOS: select the new tag **and replace Custom settings with the updated `blueos-settings.json`**. Old settings only allow USB serial devices; the new settings also permit Linux I²C devices. Save/restart, then select I²C, `/dev/i2c-6`, and address 97 in the dashboard. Legacy saved settings are migrated as UART to avoid silently redirecting an existing connection. Stop recording before changing the connection. Recording files remain in the persistent data directory.
 
 ### Device and storage permissions
 
@@ -108,7 +108,7 @@ To publish to Docker Hub later:
 1. Create a Docker Hub account and a **public** repository named `blueos-atlas-sensors`.
 2. In GitHub **Settings → Secrets and variables → Actions → Secrets**, set `DOCKER_USERNAME` to your actual Docker ID (not an email or URL) and `DOCKER_PASSWORD` to a Docker Hub access token with read/write permission.
 3. Under **Variables**, set `MY_NAME` to your maintainer name and `MY_EMAIL` to a real contact email suitable for public metadata. The literal values `name` and `email` are placeholders.
-4. Run a **new** workflow on main and select **registry: dockerhub**. Its artifact includes Docker Hub install fields and `repos/YOUR_DOCKER_USERNAME/atlas-sensors/metadata.json`. The Docker Hub image is `YOUR_DOCKER_USERNAME/blueos-atlas-sensors:0.1.2-beta.3`.
+4. Run a **new** workflow on main and select **registry: dockerhub**. Its artifact includes Docker Hub install fields and `repos/YOUR_DOCKER_USERNAME/atlas-sensors/metadata.json`. The Docker Hub image is `YOUR_DOCKER_USERNAME/blueos-atlas-sensors:0.1.2-beta.4`.
 
 After testing on your Pi and sensor:
 
@@ -122,7 +122,7 @@ Publishing a container image alone does not create a public store listing. You d
 
 ## Onboard behavior and limitations
 
-- Live mg/L, percent saturation and a trend graph, with explicit stale/disconnected states.
+- A simple main screen with Find & connect, mg/L, percent saturation and recording. Sensor settings, history, saved recordings and calibration are expandable. Connection errors use plain language with original technical details available underneath. New installations default to USB; saved I2C settings are preserved.
 - Manual recording to SQLite and per-recording CSV downloads. UTC timestamps, real/demo mode, compensation inputs and calibration status are included. Recording does not resume automatically after restart.
 - EZO-DO identity verification before configuration. Enables both output units and serializes commands with sampling. The I²C driver uses raw command bytes and binary response status, with processing delays and bounded busy retries. Continuous output is disabled only for UART connections.
 - Manual temperature, salinity in ppt, and atmospheric pressure compensation, reapplied after reconnect. Defaults must be checked for your deployment. The atmospheric pressure field is not ROV depth pressure.
