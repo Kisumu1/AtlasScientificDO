@@ -5,6 +5,8 @@ import unittest
 import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
+from pathlib import PurePosixPath
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from atlas.__main__ import handler
@@ -50,6 +52,13 @@ class FakeSerial:
 
 
 class ProtocolTests(unittest.TestCase):
+    def test_onboard_uart_error_explains_usb_port_without_opening_it(self):
+        for port in ('/dev/ttyAMA1', '/dev/serial0'):
+            with self.subTest(port=port), patch('atlas.sensors.os.path.realpath', return_value='/dev/ttyAMA1'), patch('atlas.sensors.serial.Serial') as factory:
+                with self.assertRaisesRegex(SensorError, 'onboard UART'):
+                    EzoDO(port, 9600)
+                factory.assert_not_called()
+
     def test_parser_rejects_corrupt_missing_and_nonfinite_data(self):
         self.assertEqual(parse_do('8.12,91.3')['mg_l'], 8.12)
         for value in ('8.12', 'NaN,30', '3,Infinity', '-1,12', '101,20', '3,351', '*ER', 'a,b', '1,2,3'):
@@ -138,6 +147,17 @@ class I2CTests(unittest.TestCase):
 
 
 class ServiceTests(unittest.TestCase):
+    def test_usb_discovery_filters_onboard_ports_and_finds_nodes_without_sysfs(self):
+        reported = [SimpleNamespace(device='/dev/ttyAMA1', description='Onboard', serial_number=None),
+                    SimpleNamespace(device='/dev/ttyUSB0', description='FTDI', serial_number='ABC')]
+        with patch('atlas.service.sys.platform', 'linux'), patch('atlas.service.list_ports.comports', return_value=reported), patch('atlas.service.Path') as paths:
+            paths.return_value.glob.side_effect = [[PurePosixPath('/dev/ttyUSB0'), PurePosixPath('/dev/ttyUSB1')],
+                                                    [PurePosixPath('/dev/ttyACM0')], []]
+            ports = Service.ports('uart')
+        self.assertEqual([p['device'] for p in ports], ['/dev/ttyACM0', '/dev/ttyUSB0', '/dev/ttyUSB1'])
+        self.assertEqual(ports[1]['description'], 'FTDI')
+        self.assertEqual(ports[1]['serial_number'], 'ABC')
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.service = Service(self.tmp.name)

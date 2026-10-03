@@ -1,5 +1,5 @@
 FROM python:3.11.16-slim-bookworm
-ARG VERSION=0.1.2-beta.1
+ARG VERSION=0.1.2-beta.2
 ARG AUTHORS=[]
 ARG COMPANY={}
 ARG README_URL=""
@@ -24,5 +24,5 @@ LABEL org.opencontainers.image.version="${VERSION}"
 LABEL org.opencontainers.image.source="${SOURCE_URL}"
 LABEL type="device-integration"
 LABEL requirements="core >= 1.1"
-LABEL permissions='{"ExposedPorts":{"8097/tcp":{}},"HostConfig":{"Binds":["/usr/blueos/extensions/atlas-sensors:/data","/dev:/dev"],"DeviceCgroupRules":["c 89:* rwm", "c 188:* rwm"],"PortBindings":{"8097/tcp":[{"HostPort":""}]}}}'
+LABEL permissions='{"ExposedPorts":{"8097/tcp":{}},"HostConfig":{"Binds":["/usr/blueos/extensions/atlas-sensors:/data","/dev:/dev"],"DeviceCgroupRules":["c 89:* rwm", "c 188:* rwm", "c 166:* rwm"],"PortBindings":{"8097/tcp":[{"HostPort":""}]}}}'
 CMD ["python", "-m", "atlas", "--data-dir", "/data"]

@@ -5,6 +5,7 @@ import math
 import os
 import re
 import sqlite3
+import sys
 import threading
 import time
 from collections import deque
@@ -92,10 +93,21 @@ class Service:
                     for p in sorted(Path('/dev').glob('i2c-*'))]
         ports = [dict(device=p.device, description=p.description, serial_number=p.serial_number)
                  for p in list_ports.comports()]
+        if sys.platform != 'linux':
+            return ports
+        # /dev is mounted from BlueOS, but sysfs metadata may be incomplete in
+        # the container. Include USB device nodes even when pySerial misses them.
+        ports = {p['device']: p for p in ports
+                 if re.fullmatch(r'/dev/tty(?:USB|ACM)\d+', p['device'])}
+        for pattern in ('ttyUSB*', 'ttyACM*'):
+            for p in sorted(Path('/dev').glob(pattern)):
+                if re.fullmatch(r'tty(?:USB|ACM)\d+', p.name):
+                    ports.setdefault(str(p), dict(device=str(p), description='USB serial device', serial_number=None))
         # Prefer a stable USB serial identity on the Linux host mounted by BlueOS.
         stable = [dict(device=str(p), description='Stable USB identity: ' + p.name, serial_number=None)
-                  for p in sorted(Path('/dev/serial/by-id').glob('*')) if p.exists()]
-        return stable + ports
+                  for p in sorted(Path('/dev/serial/by-id').glob('*'))
+                  if p.exists() and re.fullmatch(r'tty(?:USB|ACM)\d+', p.resolve().name)]
+        return stable + [ports[key] for key in sorted(ports)]
 
     def disconnect(self):
         if self.sensor:

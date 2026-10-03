@@ -7,7 +7,7 @@ function connectionUI() {
   $('address-field').hidden = !i2c; $('baud-field').hidden = i2c;
   $('port-label').textContent = i2c ? 'I²C bus device' : 'Serial device';
   $('port').placeholder = i2c ? '/dev/i2c-6' : '/dev/ttyUSB0';
-  $('port-help').textContent = i2c ? 'Navigator external I²C uses /dev/i2c-6. EZO-DO default address: 97 (0x61). Listing buses does not scan sensor addresses.' : 'Select only the serial device connected to the EZO-DO.';
+  $('port-help').textContent = i2c ? 'Navigator external I²C uses /dev/i2c-6. EZO-DO default address: 97 (0x61). Listing buses does not scan sensor addresses.' : 'Plug the carrier into the BlueOS Pi, then click Find devices. Choose /dev/ttyUSB… or its stable /dev/serial/by-id/… entry. /dev/ttyAMA… is an onboard UART.';
 }
 function message(text = '') { $('message').hidden = !text; $('message').textContent = text; }
 async function api(path, data) {
