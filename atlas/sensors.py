@@ -26,7 +26,7 @@ def parse_do(line):
 class EzoDO:
     def __init__(self, port, baud):
         if re.fullmatch(r'/dev/tty(?:AMA|S)\d+', os.path.realpath(port)):
-            raise SensorError('This is an onboard UART, not the USB carrier. Choose UART / USB serial, click Find devices, and select /dev/ttyUSB… or its /dev/serial/by-id/… entry.')
+            raise SensorError('This is an onboard UART, not the USB carrier. Choose UART / USB serial, click Find & connect, and select /dev/ttyUSB… or its /dev/serial/by-id/… entry.')
         self.serial = serial.Serial(port, baudrate=baud, timeout=0.1,
                                     write_timeout=1, exclusive=True)
         try:

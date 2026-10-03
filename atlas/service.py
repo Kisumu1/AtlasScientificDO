@@ -109,6 +109,49 @@ class Service:
                   if p.exists() and re.fullmatch(r'tty(?:USB|ACM)\d+', p.resolve().name)]
         return stable + [ports[key] for key in sorted(ports)]
 
+    def find_and_connect(self, raw):
+        config = validate_config(dict(raw, mode='hardware'))
+        with self.lock:
+            if self.recording:
+                raise ValueError('Stop recording before finding a sensor')
+            devices = [p['device'] for p in self.ports(config['transport'])]
+            if config['transport'] == 'i2c':
+                # Probe only the selected bus/address, or Navigator's external bus.
+                devices = [p for p in devices if p == (config['port'] or '/dev/i2c-6')]
+            elif config['port'] in devices:
+                devices.remove(config['port'])
+                devices.insert(0, config['port'])
+            if not devices:
+                raise SensorError('No matching devices found. Plug the USB carrier into the BlueOS Pi with a data cable, or check the selected I2C bus.')
+            self.disconnect()
+            seen, errors = set(), []
+            for port in devices:
+                resolved = os.path.realpath(port)
+                if resolved in seen:
+                    continue
+                seen.add(resolved)
+                candidate = None
+                adopted = False
+                try:
+                    candidate = (EzoDO(port, config['baud']) if config['transport'] == 'uart'
+                                 else EzoDOI2C(port, config['i2c_address']))
+                    candidate.compensate(config)
+                    points = candidate.calibration()
+                    candidate.read()  # Verify actual measurements before saving the connection.
+                    self.configure(dict(config, port=port))
+                    self.sensor, self.identity, self.points = candidate, candidate.identity, points
+                    adopted = True
+                    self.tick()
+                    if self.status != 'connected':
+                        raise SensorError(self.error)
+                    return dict(port=port, identity=self.identity)
+                except Exception as exc:
+                    if candidate is not None and not adopted:
+                        candidate.close()
+                    errors.append(f'{port}: {exc}')
+            self.status, self.error = 'disconnected', 'No EZO-DO connected. ' + ' | '.join(errors)
+            raise SensorError(self.error)
+
     def disconnect(self):
         if self.sensor:
             self.sensor.close()

@@ -147,6 +147,56 @@ class I2CTests(unittest.TestCase):
 
 
 class ServiceTests(unittest.TestCase):
+    def test_find_skips_wrong_device_and_saves_working_sensor(self):
+        from unittest.mock import Mock
+        sensor = Mock(identity='?i,D.O.,2.14')
+        sensor.calibration.return_value = 1
+        sensor.read.return_value = dict(mg_l=8.12, saturation_pct=91.3)
+        ports = [dict(device='/dev/ttyUSB0'), dict(device='/dev/ttyUSB1')]
+        with patch.object(self.service, 'ports', return_value=ports), patch('atlas.service.EzoDO', side_effect=[SensorError('Not EZO-DO'), sensor]) as factory:
+            result = self.service.find_and_connect(dict(DEFAULTS, transport='uart'))
+        self.assertEqual(result['port'], '/dev/ttyUSB1')
+        self.assertEqual(factory.call_count, 2)
+        self.assertEqual(self.service.config['port'], '/dev/ttyUSB1')
+        self.assertEqual(self.service.state()['status'], 'connected')
+        self.assertEqual(self.service.state()['latest']['mg_l'], 8.12)
+        self.assertEqual(json.loads(self.service.config_path.read_text())['port'], '/dev/ttyUSB1')
+        sensor.compensate.assert_called_once()
+
+    def test_find_without_devices_or_while_recording_does_not_reconfigure(self):
+        previous = dict(self.service.config)
+        with patch.object(self.service, 'ports', return_value=[]), patch('atlas.service.EzoDO') as factory:
+            with self.assertRaisesRegex(SensorError, 'No matching devices'):
+                self.service.find_and_connect(dict(DEFAULTS, transport='uart'))
+            self.service.recording = True
+            with self.assertRaisesRegex(ValueError, 'Stop recording'):
+                self.service.find_and_connect(dict(DEFAULTS, transport='uart'))
+            self.service.recording = False
+            factory.assert_not_called()
+        self.assertEqual(self.service.config, previous)
+
+    def test_find_closes_failed_sensor_and_deduplicates_usb_aliases(self):
+        from unittest.mock import Mock
+        sensor = Mock()
+        sensor.read.side_effect = SensorError('Invalid reading')
+        ports = [dict(device='/dev/serial/by-id/atlas'), dict(device='/dev/ttyUSB0')]
+        with patch.object(self.service, 'ports', return_value=ports), patch('atlas.service.os.path.realpath', return_value='/dev/ttyUSB0'), patch('atlas.service.EzoDO', return_value=sensor) as factory:
+            with self.assertRaisesRegex(SensorError, 'Invalid reading'):
+                self.service.find_and_connect(dict(DEFAULTS, transport='uart'))
+        factory.assert_called_once()
+        sensor.close.assert_called_once()
+        self.assertEqual(self.service.config['port'], '')
+        self.assertFalse(self.service.config_path.exists())
+
+    def test_find_i2c_uses_only_navigator_external_bus_at_selected_address(self):
+        from unittest.mock import Mock
+        sensor = Mock(identity='?i,D.O.,2.14')
+        sensor.calibration.return_value = 1
+        sensor.read.return_value = dict(mg_l=8.12, saturation_pct=91.3)
+        with patch.object(self.service, 'ports', return_value=[dict(device='/dev/i2c-1'), dict(device='/dev/i2c-6')]), patch('atlas.service.EzoDOI2C', return_value=sensor) as factory:
+            self.service.find_and_connect(dict(DEFAULTS, i2c_address=98))
+        factory.assert_called_once_with('/dev/i2c-6', 98)
+
     def test_usb_discovery_filters_onboard_ports_and_finds_nodes_without_sysfs(self):
         reported = [SimpleNamespace(device='/dev/ttyAMA1', description='Onboard', serial_number=None),
                     SimpleNamespace(device='/dev/ttyUSB0', description='FTDI', serial_number='ABC')]
@@ -269,6 +319,10 @@ class ServiceTests(unittest.TestCase):
             with self.assertRaises(urllib.error.HTTPError) as err:
                 post('/api/config', DEFAULTS, custom=False)
             self.assertEqual(err.exception.code, 403)
+            with patch.object(self.service, 'find_and_connect', return_value=dict(port='/dev/ttyUSB0', identity='?i,D.O.,2.14')) as finder:
+                with post('/api/find', dict(DEFAULTS, transport='uart')) as response:
+                    self.assertEqual(json.load(response)['port'], '/dev/ttyUSB0')
+                finder.assert_called_once_with(dict(DEFAULTS, transport='uart'))
             with post('/api/config', dict(DEFAULTS, mode='demo')) as response:
                 self.assertEqual(response.status, 200)
             self.service.tick()

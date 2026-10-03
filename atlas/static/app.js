@@ -7,11 +7,11 @@ function connectionUI() {
   $('address-field').hidden = !i2c; $('baud-field').hidden = i2c;
   $('port-label').textContent = i2c ? 'I²C bus device' : 'Serial device';
   $('port').placeholder = i2c ? '/dev/i2c-6' : '/dev/ttyUSB0';
-  $('port-help').textContent = i2c ? 'Navigator external I²C uses /dev/i2c-6. EZO-DO default address: 97 (0x61). Listing buses does not scan sensor addresses.' : 'Plug the carrier into the BlueOS Pi, then click Find devices. Choose /dev/ttyUSB… or its stable /dev/serial/by-id/… entry. /dev/ttyAMA… is an onboard UART.';
+  $('port-help').textContent = i2c ? 'Navigator external I²C uses /dev/i2c-6. EZO-DO default address: 97 (0x61). Listing buses does not scan sensor addresses.' : 'Plug the carrier into the BlueOS Pi, then click Find & connect. Choose /dev/ttyUSB… or its stable /dev/serial/by-id/… entry. /dev/ttyAMA… is an onboard UART.';
 }
 function message(text = '') { $('message').hidden = !text; $('message').textContent = text; }
 async function api(path, data) {
-  const options = {signal: AbortSignal.timeout(25000)};
+  const options = {signal: AbortSignal.timeout(path==='api/find'?120000:25000)};
   if (data !== undefined) Object.assign(options, {method:'POST',headers:{'Content-Type':'application/json','X-Atlas-Request':'1'},body:JSON.stringify(data)});
   const response = await fetch(path, options);
   const value = await response.json();
@@ -20,9 +20,9 @@ async function api(path, data) {
 }
 async function action(fn) {
   if (busy) return;
-  busy = true; message();
+  busy = true; $('refresh').disabled=true; $('save').disabled=true; message();
   try { await fn(); await update(); } catch(e) { message(e.message); }
-  finally { busy = false; }
+  finally { busy = false; $('refresh').disabled=!!state?.recording; $('save').disabled=!!state?.recording; }
 }
 function chart() {
   const canvas = $('chart'), rect = canvas.getBoundingClientRect(), scale = devicePixelRatio || 1;
@@ -56,7 +56,7 @@ function render(s) {
   $('identity').textContent=s.identity||'No sensor identified';
   $('record').disabled=!s.recording&&!live;$('record').textContent=s.recording?'■ Stop recording':'● Start recording';
   $('record-state').textContent=s.log_error||(s.recording?'Recording '+(demo?'SIMULATED':'hardware')+' data onboard…':'Recording is stopped.');
-  $('save').disabled=s.recording;
+  $('save').disabled=busy||s.recording;$('refresh').disabled=busy||s.recording;
   for(const id of ['cal-air','cal-zero'])$(id).disabled=demo||!live||s.recording;
   const container=$('sessions');container.replaceChildren();
   if(!s.sessions.length){const p=document.createElement('p');p.className='muted';p.textContent='No recordings yet.';container.append(p);}
@@ -64,11 +64,21 @@ function render(s) {
   chart();
 }
 async function update(){render(await api('api/state'));}
+function formConfig(){return Object.fromEntries(fields.map(k=>[k,['mode','transport','port'].includes(k)?$(k).value.trim():Number($(k).value)]));}
+async function findSensor(){
+  if(!$('settings').reportValidity())return;
+  const button=$('refresh');button.textContent='Finding…';
+  try{
+    const result=await api('api/find',formConfig());
+    $('port').value=result.port;$('mode').value='hardware';
+    $('port-help').textContent='Connected to '+result.port+' — '+result.identity;
+  }finally{button.textContent='Find & connect';}
+}
 async function refreshPorts(){const ports=await api('api/ports?transport='+$('transport').value);$('ports').replaceChildren();ports.forEach(p=>{const o=document.createElement('option');o.value=p.device;o.label=p.description;$('ports').append(o);});$('port-help').textContent=ports.length?ports.map(p=>p.device+' — '+p.description).join(' · '):'No matching devices found. Check the sensor connection, selected connection type, and the extension’s device permissions.';}
 $('transport').addEventListener('change',()=>{$('port').value='';connectionUI();action(refreshPorts);});
-$('settings').addEventListener('submit',e=>{e.preventDefault();action(async()=>{const config=Object.fromEntries(fields.map(k=>[k,['mode','transport','port'].includes(k)?$(k).value.trim():Number($(k).value)]));if(config.mode==='hardware'&&!config.port)throw new Error('Choose the sensor bus or serial device first');await api('api/config',config);});});
+$('settings').addEventListener('submit',e=>{e.preventDefault();action(async()=>{const config=formConfig();if(config.mode==='hardware'&&!config.port)throw new Error('Choose the sensor bus or serial device first');await api('api/config',config);});});
 $('record').addEventListener('click',()=>action(()=>api('api/record',{enabled:!state.recording})));
-$('refresh').addEventListener('click',()=>action(refreshPorts));
+$('refresh').addEventListener('click',()=>action(findSensor));
 for(const kind of ['air','zero'])$('cal-'+kind).addEventListener('click',()=>{if(confirm(kind==='air'?'Apply air calibration now? Confirm the probe is prepared according to Atlas instructions, exposed to air, and readings are stable. This changes saved sensor calibration.':'Apply zero calibration now? Confirm the probe is in zero-oxygen solution and readings are stable. This changes saved sensor calibration.'))action(()=>api('api/calibrate',{kind,confirmed:true}));});
 $('metric').addEventListener('change',chart);window.addEventListener('resize',chart);
 async function poll(){try{await update();}catch(e){$('status').textContent='DASHBOARD OFFLINE';$('mg').textContent='—';$('sat').textContent='—';$('notice').textContent='Cannot reach the onboard extension. Displayed history may be stale.';for(const id of ['record','cal-air','cal-zero'])$(id).disabled=true;}finally{setTimeout(poll,2000);}}
