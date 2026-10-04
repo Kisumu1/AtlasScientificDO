@@ -84,7 +84,7 @@ function render(s) {
   const container=$('sessions');container.replaceChildren();
   if(!s.sessions.length){const p=document.createElement('p');p.className='muted';p.textContent='No recordings yet.';container.append(p);}
   s.sessions.forEach(session=>{const row=document.createElement('div');row.className='session';const title=document.createElement('div');title.textContent=new Date(session.started).toLocaleString();const meta=document.createElement('small');meta.textContent=(session.mode==='demo'?'SIMULATED':'Hardware')+' · '+(session.stopped?'Completed':s.recording&&s.session===session.id?'Recording':'Interrupted');title.append(meta);const a=document.createElement('a');a.href='api/export?session='+encodeURIComponent(session.id);a.textContent='Download CSV';row.append(title,a);container.append(row);});
-  $('cockpit-status').textContent=s.cockpit?.status==='publishing'?'Bottom-bar telemetry is available.':s.cockpit?.status==='disabled'?'Bottom-bar telemetry is disabled outside BlueOS.':'Cannot reach BlueOS telemetry. The dashboard and regular widget still work.';
+  $('cockpit-status').textContent=s.cockpit?.status==='connected'?'Cockpit is receiving sensor data.':'Add the data connection in Cockpit to use bottom-bar indicators.';
   chart();
 }
 async function update(){render(await api('api/state'));}
@@ -108,3 +108,7 @@ $('metric').addEventListener('change',chart);window.addEventListener('resize',ch
 $('trend').addEventListener('toggle',chart);
 async function poll(){if(busy){setTimeout(poll,2000);return;}try{await update();}catch(e){$('status').textContent='Dashboard offline';$('mg').textContent='—';$('sat').textContent='—';$('notice').textContent='Cannot reach the extension. Check your connection to BlueOS.';for(const id of ['record','cal-air','cal-zero'])$(id).disabled=true;}finally{setTimeout(poll,2000);}}
 poll();refreshPorts().catch(()=>{});
+
+const cockpitStreamUrl = new URL('cockpit/ws', location.href);
+cockpitStreamUrl.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+document.getElementById('cockpit-url').textContent = cockpitStreamUrl.href;

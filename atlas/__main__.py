@@ -28,6 +28,8 @@ def handler(service):
         def do_GET(self):
             url = urlsplit(self.path)
             try:
+                if url.path == '/cockpit/ws':
+                    return service.cockpit.stream(self)
                 if url.path == '/api/state':
                     return self.send(service.state())
                 if url.path == '/api/measurement':
@@ -37,7 +39,7 @@ def handler(service):
                 if url.path == '/register_service':
                     return self.send(dict(name='Atlas Sensors', description='Dissolved oxygen monitoring',
                                           icon='mdi-water-percent', company='Community extension',
-                                          version=os.environ.get('ATLAS_VERSION', '0.1.3-beta.3'),
+                                          version=os.environ.get('ATLAS_VERSION', '0.1.3-beta.4'),
                                           webpage=os.environ.get('ATLAS_SOURCE_URL') or '/', api='/api/state',
                                           works_in_relative_paths=True, extras={'cockpit': '/cockpit.json'}))
                 if url.path == '/api/export':
@@ -127,7 +129,6 @@ def main():
     service.cockpit = CockpitTelemetry(service.measurement)
     server = ThreadingHTTPServer((args.host, args.port), handler(service))
     service.thread.start()
-    service.cockpit.thread.start()
     logging.info('Atlas dashboard on port %d', args.port)
     try:
         server.serve_forever()
