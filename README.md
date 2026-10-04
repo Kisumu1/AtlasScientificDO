@@ -2,7 +2,7 @@
 
 An onboard BlueOS extension for the **Atlas EZO-DO circuit**, connected through an Atlas USB serial carrier or the original ISCCB-2 isolated carrier over I²C. The Raspberry Pi runs the driver, logging and web server. The interface opens inside BlueOS. The deployment target is the BlueOS Extensions Manager.
 
-Current release: **0.1.3-beta.2**. Only dissolved oxygen is implemented. This is an independent community integration, not an official Atlas Scientific product.
+Current release: **0.1.3-beta.3**. Only dissolved oxygen is implemented. This is an independent community integration, not an official Atlas Scientific product.
 
 ## What makes this a BlueOS extension
 
@@ -28,7 +28,7 @@ This uses GitHub’s build machines and **GitHub Container Registry (GHCR)**. No
 6. From the completed workflow, download the **blueos-install-and-bazaar** artifact. Its `INSTALL.txt` contains the actual install fields for your account, and `blueos-settings.json` contains the settings to paste into BlueOS. For this repository the image tag is:
 
    ```text
-   ghcr.io/kisumu1/blueos-atlas-sensors:0.1.3-beta.2
+   ghcr.io/kisumu1/blueos-atlas-sensors:0.1.3-beta.3
    ```
 
 GHCR publishing uses the GitHub repository owner and its GitHub noreply address for the required metadata labels; the source repository's Issues page is the support link. Old Docker Hub secrets and placeholder `MY_NAME`/`MY_EMAIL` variables are unused when `registry=ghcr`.
@@ -53,7 +53,7 @@ You can install your own image without waiting for public Bazaar approval.
    | Extension Identifier | `kisumu1.atlas-sensors` |
    | Extension Name | `Atlas Sensors` |
    | Docker image | `ghcr.io/kisumu1/blueos-atlas-sensors` |
-   | Docker tag | `0.1.3-beta.2` |
+   | Docker tag | `0.1.3-beta.3` |
    | Custom settings | Paste the complete `blueos-settings.json` from this package or workflow artifact |
 
 5. Submit the install. BlueOS downloads the matching ARM image, creates its container and manages its lifecycle. **Atlas Sensors** should appear on the Installed page and then in the sidebar after service discovery.
@@ -158,7 +158,7 @@ Version 0.1.3-beta.1 was verified on the same Pi and USB sensor: BlueOS discover
 
 ### Cockpit bottom bar
 
-The bottom bar accepts mini-widgets. From version **0.1.3-beta.2**, the extension publishes named oxygen telemetry through BlueOS mavlink2rest automatically. No extra device or Docker permissions are required.
+The bottom bar accepts mini-widgets. From version **0.1.3-beta.3**, the extension publishes named oxygen telemetry through the BlueOS MAVLink router automatically. No extra device or Docker permissions are required.
 
 1. Enter **Edit Interface** in Cockpit and select **Mini** in the widget picker.
 2. Drag **Very Generic Indicator** into a bottom-bar container.
@@ -168,4 +168,7 @@ The bottom bar accepts mini-widgets. From version **0.1.3-beta.2**, the extensio
 
 Only fresh hardware readings are published. **-1** means unavailable (disconnected, stale, or demo mode); **ATLAS_OK** is **1** for a valid hardware reading and **0** otherwise. Generic indicators can retain their last value if the whole extension or vehicle link stops. Check Cockpit's connection indication; the regular widget also has a reading-age timeout.
 
-Telemetry runs separately from sensor sampling and logging. Its availability appears in the dashboard's Cockpit section. It uses the container's default gateway on port 6040, the default vehicle system ID 1, and component 1 for compatibility with older Cockpit versions that filter other components. Only uniquely named NAMED_VALUE_FLOAT messages are sent. It never sends flight control commands or heartbeat messages. Custom installs can set `ATLAS_MAVLINK_URL` to the local mavlink2rest `/v1/mavlink` URL (an empty value disables publishing) and `ATLAS_SYSTEM_ID` if their vehicle uses a different ID.
+Telemetry runs separately from sensor sampling and logging. Its availability appears in the dashboard's Cockpit section. It sends only NAMED_VALUE_FLOAT messages to the Docker gateway's UDP port 14660 (BlueOS's enabled Ping360 Heading endpoint), using vehicle system ID 1 and its own component ID 25. A read-only mavlink2rest check confirms delivery. It never sends flight commands or heartbeats, and never uses the autopilot's component ID. Custom installs can set `ATLAS_MAVLINK_UDP` to an enabled router UDP server's `host:port` (empty disables publishing), `ATLAS_MAVLINK_URL` to the read-only mavlink2rest `/v1/mavlink` base, and `ATLAS_SYSTEM_ID` for a different vehicle.
+
+Use Cockpit v1.19 or a version with **MAVLink settings > Enable DataLake variables from other systems**. Turn that setting on so it accepts component 25. Older Cockpit v1.16 ignores non-autopilot components and cannot use these bottom-bar indicators. The ordinary Atlas iframe widget still works in v1.16.
+
