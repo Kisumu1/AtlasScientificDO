@@ -2,7 +2,7 @@
 
 An onboard BlueOS extension for the **Atlas EZO-DO circuit**, connected through an Atlas USB serial carrier or the original ISCCB-2 isolated carrier over I²C. The Raspberry Pi runs the driver, logging and web server. The interface opens inside BlueOS. The deployment target is the BlueOS Extensions Manager.
 
-Current release: **0.1.3-beta.1**. Only dissolved oxygen is implemented. This is an independent community integration, not an official Atlas Scientific product.
+Current release: **0.1.3-beta.2**. Only dissolved oxygen is implemented. This is an independent community integration, not an official Atlas Scientific product.
 
 ## What makes this a BlueOS extension
 
@@ -28,7 +28,7 @@ This uses GitHub’s build machines and **GitHub Container Registry (GHCR)**. No
 6. From the completed workflow, download the **blueos-install-and-bazaar** artifact. Its `INSTALL.txt` contains the actual install fields for your account, and `blueos-settings.json` contains the settings to paste into BlueOS. For this repository the image tag is:
 
    ```text
-   ghcr.io/kisumu1/blueos-atlas-sensors:0.1.3-beta.1
+   ghcr.io/kisumu1/blueos-atlas-sensors:0.1.3-beta.2
    ```
 
 GHCR publishing uses the GitHub repository owner and its GitHub noreply address for the required metadata labels; the source repository's Issues page is the support link. Old Docker Hub secrets and placeholder `MY_NAME`/`MY_EMAIL` variables are unused when `registry=ghcr`.
@@ -53,7 +53,7 @@ You can install your own image without waiting for public Bazaar approval.
    | Extension Identifier | `kisumu1.atlas-sensors` |
    | Extension Name | `Atlas Sensors` |
    | Docker image | `ghcr.io/kisumu1/blueos-atlas-sensors` |
-   | Docker tag | `0.1.3-beta.1` |
+   | Docker tag | `0.1.3-beta.2` |
    | Custom settings | Paste the complete `blueos-settings.json` from this package or workflow artifact |
 
 5. Submit the install. BlueOS downloads the matching ARM image, creates its container and manages its lifecycle. **Atlas Sensors** should appear on the Installed page and then in the sidebar after service discovery.
@@ -155,3 +155,17 @@ The readout shares the extension's sensor connection and displays mg/L, saturati
 For a manual IFrame widget, use `http://BLUEOS_ADDRESS/extensionv2/atlassensors/widget.html` as its source URL. The same page is available through **Cockpit widget > Preview widget** on the dashboard. Discovery follows [Cockpit's extension metadata interface](https://github.com/bluerobotics/cockpit/blob/v1.16.0-beta.8/src/libs/blueos.ts); metadata supports the installed snake_case interface and newer camelCase widget fields.
 
 Version 0.1.3-beta.1 was verified on the same Pi and USB sensor: BlueOS discovered the Cockpit metadata, Cockpit v1.16.0-beta.8 listed Atlas Dissolved Oxygen, and the added widget displayed live mg/L and saturation. The sensor reconnected using its saved USB settings after the update. Python tests, widget state tests, and both ARM startup checks passed in [the release run](https://github.com/Kisumu1/AtlasScientificDO/actions/runs/37167218655).
+
+### Cockpit bottom bar
+
+The bottom bar accepts mini-widgets. From version **0.1.3-beta.2**, the extension publishes named oxygen telemetry through BlueOS mavlink2rest automatically. No extra device or Docker permissions are required.
+
+1. Enter **Edit Interface** in Cockpit and select **Mini** in the widget picker.
+2. Drag **Very Generic Indicator** into a bottom-bar container.
+3. Open its settings and select **Custom**. Set display name **Oxygen**, variable **NAMED_VALUE_FLOAT/ATLAS_DO**, unit **mg/L**, multiplier **1**, decimal places **2**.
+4. For saturation, add a second indicator using **NAMED_VALUE_FLOAT/ATLAS_SAT**, name **O2 saturation**, unit **%**, decimal places **1**.
+5. Exit edit mode. Place these in any view or top/bottom bar like other native indicators.
+
+Only fresh hardware readings are published. **-1** means unavailable (disconnected, stale, or demo mode); **ATLAS_OK** is **1** for a valid hardware reading and **0** otherwise. Generic indicators can retain their last value if the whole extension or vehicle link stops. Check Cockpit's connection indication; the regular widget also has a reading-age timeout.
+
+Telemetry runs separately from sensor sampling and logging. Its availability appears in the dashboard's Cockpit section. It uses the container's default gateway on port 6040, the default vehicle system ID 1, and component 1 for compatibility with older Cockpit versions that filter other components. Only uniquely named NAMED_VALUE_FLOAT messages are sent. It never sends flight control commands or heartbeat messages. Custom installs can set `ATLAS_MAVLINK_URL` to the local mavlink2rest `/v1/mavlink` URL (an empty value disables publishing) and `ATLAS_SYSTEM_ID` if their vehicle uses a different ID.

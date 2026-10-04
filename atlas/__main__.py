@@ -7,6 +7,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from .service import Service
+from .cockpit import CockpitTelemetry
 
 STATIC = Path(__file__).parent / 'static'
 
@@ -36,7 +37,7 @@ def handler(service):
                 if url.path == '/register_service':
                     return self.send(dict(name='Atlas Sensors', description='Dissolved oxygen monitoring',
                                           icon='mdi-water-percent', company='Community extension',
-                                          version=os.environ.get('ATLAS_VERSION', '0.1.3-beta.1'),
+                                          version=os.environ.get('ATLAS_VERSION', '0.1.3-beta.2'),
                                           webpage=os.environ.get('ATLAS_SOURCE_URL') or '/', api='/api/state',
                                           works_in_relative_paths=True, extras={'cockpit': '/cockpit.json'}))
                 if url.path == '/api/export':
@@ -123,8 +124,10 @@ def main():
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
     service = Service(args.data_dir, demo=args.demo)
+    service.cockpit = CockpitTelemetry(service.measurement)
     server = ThreadingHTTPServer((args.host, args.port), handler(service))
     service.thread.start()
+    service.cockpit.thread.start()
     logging.info('Atlas dashboard on port %d', args.port)
     try:
         server.serve_forever()
@@ -132,6 +135,7 @@ def main():
         pass
     finally:
         server.server_close()
+        service.cockpit.close()
         service.close()
 
 

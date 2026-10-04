@@ -84,6 +84,7 @@ function render(s) {
   const container=$('sessions');container.replaceChildren();
   if(!s.sessions.length){const p=document.createElement('p');p.className='muted';p.textContent='No recordings yet.';container.append(p);}
   s.sessions.forEach(session=>{const row=document.createElement('div');row.className='session';const title=document.createElement('div');title.textContent=new Date(session.started).toLocaleString();const meta=document.createElement('small');meta.textContent=(session.mode==='demo'?'SIMULATED':'Hardware')+' · '+(session.stopped?'Completed':s.recording&&s.session===session.id?'Recording':'Interrupted');title.append(meta);const a=document.createElement('a');a.href='api/export?session='+encodeURIComponent(session.id);a.textContent='Download CSV';row.append(title,a);container.append(row);});
+  $('cockpit-status').textContent=s.cockpit?.status==='publishing'?'Bottom-bar telemetry is available.':s.cockpit?.status==='disabled'?'Bottom-bar telemetry is disabled outside BlueOS.':'Cannot reach BlueOS telemetry. The dashboard and regular widget still work.';
   chart();
 }
 async function update(){render(await api('api/state'));}

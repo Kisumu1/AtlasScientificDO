@@ -65,6 +65,7 @@ class Service:
         self.sensor = None
         self.status = 'waiting'
         self.error = ''
+        self.cockpit = None
         self.identity = ''
         self.points = None
         self.latest = None
@@ -235,7 +236,8 @@ class Service:
                         identity=self.identity, calibration_points=self.points,
                         latest=measurement['latest'], stale=measurement['stale'], age_s=measurement['age_s'], history=list(self.history),
                         recording=self.recording, session=self.session, sessions=sessions,
-                        log_error=self.log_error)
+                        log_error=self.log_error,
+                        cockpit=self.cockpit.state() if self.cockpit else dict(status='disabled', error=''))
 
     def record(self, enabled):
         with self.lock:
