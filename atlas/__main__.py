@@ -39,7 +39,7 @@ def handler(service):
                 if url.path == '/register_service':
                     return self.send(dict(name='Atlas Sensors', description='Dissolved oxygen monitoring',
                                           icon='mdi-water-percent', company='Community extension',
-                                          version=os.environ.get('ATLAS_VERSION', '0.1.3-beta.4'),
+                                          version=os.environ.get('ATLAS_VERSION', '0.1.3-beta.5'),
                                           webpage=os.environ.get('ATLAS_SOURCE_URL') or '/', api='/api/state',
                                           works_in_relative_paths=True, extras={'cockpit': '/cockpit.json'}))
                 if url.path == '/api/export':

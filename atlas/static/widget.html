@@ -1,8 +1,8 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Atlas Dissolved Oxygen</title><link rel="stylesheet" href="widget.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Atlas Dissolved Oxygen</title><link rel="icon" href="widget.svg" type="image/svg+xml"><link rel="stylesheet" href="widget.css"></head>
 <body><main aria-label="Dissolved oxygen sensor">
-<header><span>Dissolved oxygen</span><span id="source">Atlas DO</span></header>
-<div class="values"><div><strong id="mg">—</strong><span>mg/L</span></div><div><strong id="sat">—</strong><span>% sat.</span></div></div>
+<header><div class="brand"><img src="widget.svg" alt="" width="28" height="28"><span>Dissolved oxygen</span></div><span id="source">Atlas DO</span></header>
+<div class="values"><section aria-label="Oxygen concentration"><span class="label">Concentration</span><div class="measurement"><strong id="mg">—</strong><span class="unit">mg/L</span></div></section><section aria-label="Oxygen saturation"><span class="label">Saturation</span><div class="measurement"><strong id="sat">—</strong><span class="unit">%</span></div></section></div>
 <p id="status" role="status">Connecting to extension…</p>
 </main><script src="widget.js"></script></body></html>

@@ -2,7 +2,7 @@
 
 An onboard BlueOS extension for the **Atlas EZO-DO circuit**, connected through an Atlas USB serial carrier or the original ISCCB-2 isolated carrier over I²C. The Raspberry Pi runs the driver, logging and web server. The interface opens inside BlueOS. The deployment target is the BlueOS Extensions Manager.
 
-Current release: **0.1.3-beta.4**. Only dissolved oxygen is implemented. This is an independent community integration, not an official Atlas Scientific product.
+Current release: **0.1.3-beta.5**. Only dissolved oxygen is implemented. This is an independent community integration, not an official Atlas Scientific product.
 
 ## What makes this a BlueOS extension
 
@@ -28,7 +28,7 @@ This uses GitHub’s build machines and **GitHub Container Registry (GHCR)**. No
 6. From the completed workflow, download the **blueos-install-and-bazaar** artifact. Its `INSTALL.txt` contains the actual install fields for your account, and `blueos-settings.json` contains the settings to paste into BlueOS. For this repository the image tag is:
 
    ```text
-   ghcr.io/kisumu1/blueos-atlas-sensors:0.1.3-beta.4
+   ghcr.io/kisumu1/blueos-atlas-sensors:0.1.3-beta.5
    ```
 
 GHCR publishing uses the GitHub repository owner and its GitHub noreply address for the required metadata labels; the source repository's Issues page is the support link. Old Docker Hub secrets and placeholder `MY_NAME`/`MY_EMAIL` variables are unused when `registry=ghcr`.
@@ -53,7 +53,7 @@ You can install your own image without waiting for public Bazaar approval.
    | Extension Identifier | `kisumu1.atlas-sensors` |
    | Extension Name | `Atlas Sensors` |
    | Docker image | `ghcr.io/kisumu1/blueos-atlas-sensors` |
-   | Docker tag | `0.1.3-beta.4` |
+   | Docker tag | `0.1.3-beta.5` |
    | Custom settings | Paste the complete `blueos-settings.json` from this package or workflow artifact |
 
 5. Submit the install. BlueOS downloads the matching ARM image, creates its container and manages its lifecycle. **Atlas Sensors** should appear on the Installed page and then in the sidebar after service discovery.
@@ -158,7 +158,7 @@ Version 0.1.3-beta.1 was verified on the same Pi and USB sensor: BlueOS discover
 
 ### Cockpit bottom bar
 
-Version **0.1.3-beta.4** provides a read-only WebSocket stream for Cockpit's native indicators. Use Cockpit v1.19 or a version with **General settings > Generic WebSocket connections**. Older Cockpit v1.16 supports the regular Atlas iframe widget only.
+Version **0.1.3-beta.5** provides a read-only WebSocket stream for Cockpit's native indicators. Use Cockpit v1.19 or a version with **General settings > Generic WebSocket connections**. Older Cockpit v1.16 supports the regular Atlas iframe widget only.
 
 1. In Cockpit's General settings, add `ws://{{ vehicle-address }}/extensionv2/atlassensors/cockpit/ws` under **Generic WebSocket connections**. Use `wss://` when BlueOS is served over HTTPS.
 2. Enter **Edit Interface**, select **Mini**, and drag **Very Generic Indicator** into a bottom-bar container.
