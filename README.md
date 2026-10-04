@@ -136,7 +136,7 @@ Publishing a container image alone does not create a public store listing. You d
 
 Local backend and release metadata tests pass. Both **ARMv7 and ARM64** image builds, backend tests and onboard startup checks passed in [the October 3, 2026 Actions run](https://github.com/Kisumu1/AtlasScientificDO/actions/runs/37154324868). That run failed before publishing because Docker Hub configuration was invalid; the updated workflow uses GHCR by default and current actions with Node.js 24 support.
 
-Physical USB and Navigator/I²C operation have not been verified. Successful Actions runs establish container compatibility; the onboard checks in section B establish actual hardware behavior.
+Physical USB operation was verified on October 3, 2026 on BlueOS 1.4.6 with an FTDI FT230X USB carrier and EZO-DO firmware 2.17. Version 0.1.2-beta.5 identified the circuit, connected automatically, saved its stable USB port, and displayed live mg/L and saturation readings. Calibration and recording were not changed during this check. All 26 tests and startup checks passed on ARMv7 and ARM64 in [the successful release run](https://github.com/Kisumu1/AtlasScientificDO/actions/runs/37165143922). Navigator/I²C hardware operation remains unverified.
 
 ## Code layout
 
