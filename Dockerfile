@@ -1,5 +1,5 @@
 FROM python:3.11.16-slim-bookworm
-ARG VERSION=0.1.2-beta.4
+ARG VERSION=0.1.2-beta.5
 ARG AUTHORS=[]
 ARG COMPANY={}
 ARG README_URL=""

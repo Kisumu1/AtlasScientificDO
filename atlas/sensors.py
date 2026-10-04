@@ -11,6 +11,11 @@ class SensorError(Exception):
     pass
 
 
+def is_do_identity(identity):
+    parts = identity.upper().split(',')
+    return len(parts) == 3 and parts[0] == '?I' and parts[1] in ('DO', 'D.O.') and bool(parts[2])
+
+
 def parse_do(line):
     try:
         values = [float(x) for x in line.split(',')]
@@ -32,7 +37,7 @@ class EzoDO:
         try:
             # Identify before changing device settings. Query also works if *OK is off.
             self.identity = self.command('i', prefix='?i,', identify=True)[0]
-            if not self.identity.upper().startswith('?I,D.O.,'):
+            if not is_do_identity(self.identity):
                 raise SensorError('Selected port is not an Atlas EZO-DO circuit')
             # Stop unsolicited samples, then enable acknowledgements for transactions.
             for cmd in ('C,0', '*OK,1'):
@@ -65,12 +70,12 @@ class EzoDO:
                 if line == '*OK':
                     if identify:
                         continue
-                    if prefix and not any(s.startswith(prefix) for s in payload):
+                    if prefix and not any(s.casefold().startswith(prefix.casefold()) for s in payload):
                         raise SensorError('Sensor acknowledged without the requested data')
                     return payload
                 if line.startswith('*'):
                     raise SensorError('EZO status: ' + line)
-                if prefix is None or line.startswith(prefix):
+                if prefix is None or line.casefold().startswith(prefix.casefold()):
                     payload.append(line)
                     if identify:
                         return payload
@@ -137,7 +142,7 @@ class EzoDOI2C(EzoDO):
         self.bus = LinuxI2CBus(path, address)
         try:
             self.identity = self.command('i', prefix='?i,')[0]
-            if not self.identity.upper().startswith('?I,D.O.,'):
+            if not is_do_identity(self.identity):
                 raise SensorError('Selected I2C address is not an Atlas EZO-DO circuit')
             self.command('O,mg,1')
             self.command('O,%,1')
@@ -161,7 +166,7 @@ class EzoDOI2C(EzoDO):
                 description = {2: 'command rejected', 255: 'no data available'}.get(status, 'unknown status')
                 raise SensorError(f'EZO I2C {description} ({status})')
             payload = response[1:].split(b'\x00', 1)[0].decode('ascii').strip()
-            if prefix and not payload.startswith(prefix):
+            if prefix and not payload.casefold().startswith(prefix.casefold()):
                 raise SensorError('Unexpected EZO I2C response')
             return [payload] if payload else []
         raise SensorError('EZO I2C processing timeout')

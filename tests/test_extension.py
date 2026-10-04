@@ -52,6 +52,16 @@ class FakeSerial:
 
 
 class ProtocolTests(unittest.TestCase):
+    @patch('atlas.sensors.time.sleep')
+    def test_actual_firmware_217_identity_amid_continuous_readings(self, _):
+        fake = FakeSerial()
+        fake.identity = b'0.40\r?I,DO,2.17\r*OK\r0.40\r'
+        with patch('atlas.sensors.serial.Serial', return_value=fake):
+            driver = EzoDO('/dev/ttyUSB0', 9600)
+        self.assertEqual(driver.identity, '?I,DO,2.17')
+        self.assertEqual(driver.read()['mg_l'], 8.12)
+        driver.close()
+
     def test_onboard_uart_error_explains_usb_port_without_opening_it(self):
         for port in ('/dev/ttyAMA1', '/dev/serial0'):
             with self.subTest(port=port), patch('atlas.sensors.os.path.realpath', return_value='/dev/ttyAMA1'), patch('atlas.sensors.serial.Serial') as factory:
@@ -102,6 +112,14 @@ class ProtocolTests(unittest.TestCase):
 
 
 class I2CTests(unittest.TestCase):
+    @patch('atlas.sensors.time.sleep')
+    def test_new_firmware_identity_on_i2c(self, _):
+        with patch('atlas.sensors.LinuxI2CBus') as factory:
+            factory.return_value.read.side_effect = [b'\x01?I,DO,2.17\x00', b'\x01\x00', b'\x01\x00']
+            driver = EzoDOI2C('/dev/i2c-6', 97)
+            self.assertEqual(driver.identity, '?I,DO,2.17')
+            driver.close()
+
     @patch('atlas.sensors.time.sleep')
     def test_identity_setup_read_and_compensation(self, sleep):
         with patch('atlas.sensors.LinuxI2CBus') as factory:
