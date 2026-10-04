@@ -15,6 +15,14 @@ else:
 
 assert registration['name'] == 'Atlas Sensors'
 assert registration['works_in_relative_paths'] is True
+assert registration['extras']['cockpit'] == '/cockpit.json'
+with urllib.request.urlopen('http://127.0.0.1:8097/cockpit.json') as response:
+    widget = json.load(response)['widgets'][0]
+with urllib.request.urlopen('http://127.0.0.1:8097' + widget['iframe_url']) as response:
+    assert b'widget.js' in response.read()
+with urllib.request.urlopen('http://127.0.0.1:8097/api/measurement') as response:
+    measurement = json.load(response)
+assert measurement['latest'] is None and measurement['stale']
 assert all(k in registration for k in ('description', 'icon', 'company', 'version', 'webpage', 'api'))
 with urllib.request.urlopen('http://127.0.0.1:8097/api/state') as response:
     state = json.load(response)

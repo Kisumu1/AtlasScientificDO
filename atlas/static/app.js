@@ -56,11 +56,11 @@ function chart() {
   let min = Math.min(...points.map(p=>p[key])), max = Math.max(...points.map(p=>p[key]));
   const pad = Math.max((max-min)*.15, key==='mg_l'?.2:2); min = Math.max(0,min-pad); max+=pad;
   ctx.font='11px system-ui';
-  for(let i=0;i<5;i++) { const y=top+(bottom-top)*i/4;ctx.strokeStyle='#263946';ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(w,y);ctx.stroke();ctx.fillStyle='#91a9b7';ctx.fillText((max-(max-min)*i/4).toFixed(1),2,y+4); }
+  for(let i=0;i<5;i++) { const y=top+(bottom-top)*i/4;ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--line');ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(w,y);ctx.stroke();ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--muted');ctx.fillText((max-(max-min)*i/4).toFixed(1),2,y+4); }
   const start=Date.parse(points[0].timestamp_utc), end=Date.parse(points.at(-1).timestamp_utc);
   ctx.beginPath(); let previous;
   points.forEach((p,i)=>{const t=Date.parse(p.timestamp_utc),x=left+(w-left-5)*(t-start)/Math.max(1000,end-start),y=bottom-(p[key]-min)/(max-min)*(bottom-top);if(i===0||t-previous>state.config.interval_s*2500)ctx.moveTo(x,y);else ctx.lineTo(x,y);previous=t;if(points.length===1){ctx.moveTo(x-2,y);ctx.lineTo(x+2,y);}});
-  ctx.strokeStyle=state.config.mode==='demo'?'#f2c76e':'#4fe0c1';ctx.lineWidth=2;ctx.stroke();
+  ctx.strokeStyle=state.config.mode==='demo'?'#a47500':getComputedStyle(document.documentElement).getPropertyValue('--accent');ctx.lineWidth=2;ctx.stroke();
   $('chart-start').textContent=new Date(start).toLocaleTimeString();$('chart-end').textContent=new Date(end).toLocaleTimeString();
 }
 function render(s) {
@@ -77,7 +77,7 @@ function render(s) {
   $('ctx-temp').textContent=s.config.temperature_c+' °C';$('ctx-sal').textContent=s.config.salinity_ppt+' ppt';$('ctx-pressure').textContent=s.config.pressure_kpa+' kPa';
   $('cal-status').textContent=demo?'Not applicable':s.calibration_points===null?'Unknown':s.calibration_points===0?'Not calibrated':s.calibration_points+' point';
   $('identity').textContent=s.identity?'EZO-DO · '+s.config.port:'No sensor connected';
-  $('record').disabled=!s.recording&&!live;$('record').textContent=s.recording?'■ Stop recording':'● Start recording';
+  $('record').disabled=!s.recording&&!live;$('record').textContent=s.recording?'Stop recording':'Start recording';
   $('record-state').textContent=s.log_error||(s.recording?'Recording '+(demo?'SIMULATED':'hardware')+' data onboard…':'Recording is stopped.');
   $('save').disabled=busy||s.recording;$('refresh').disabled=busy||s.recording;
   for(const id of ['cal-air','cal-zero'])$(id).disabled=demo||!live||s.recording;

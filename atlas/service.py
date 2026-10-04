@@ -217,16 +217,23 @@ class Service:
             delay = self.config['interval_s'] if self.status == 'connected' else 5
             self.stop.wait(max(0.1, delay - (time.monotonic() - started)))
 
-    def state(self):
+    def measurement(self):
+        """Read-only snapshot shared by the dashboard and Cockpit, without recording history."""
         with self.lock:
             age = None if self.latest is None else (datetime.now(timezone.utc) -
                   datetime.fromisoformat(self.latest['timestamp_utc'])).total_seconds()
             stale = age is None or age > max(5, self.config['interval_s'] * 2.5) or self.status != 'connected'
+            return dict(status=self.status, mode=self.config['mode'], latest=self.latest,
+                        stale=stale, age_s=age, interval_s=self.config['interval_s'])
+
+    def state(self):
+        with self.lock:
+            measurement = self.measurement()
             sessions = [dict(id=row[0], mode=row[1], started=row[2], stopped=row[3]) for row in
                         self.db.execute('SELECT * FROM sessions ORDER BY started DESC LIMIT 100')]
             return dict(config=dict(self.config), status=self.status, error=self.error,
                         identity=self.identity, calibration_points=self.points,
-                        latest=self.latest, stale=stale, age_s=age, history=list(self.history),
+                        latest=measurement['latest'], stale=measurement['stale'], age_s=measurement['age_s'], history=list(self.history),
                         recording=self.recording, session=self.session, sessions=sessions,
                         log_error=self.log_error)
 

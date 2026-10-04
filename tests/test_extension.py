@@ -326,9 +326,22 @@ class ServiceTests(unittest.TestCase):
         thread.start()
         base = f'http://127.0.0.1:{server.server_port}'
         try:
-            for path in ('/', '/app.js', '/style.css', '/register_service', '/api/state', '/api/ports'):
+            for path in ('/', '/app.js', '/style.css', '/register_service', '/api/state', '/api/ports', '/widget.html', '/widget.js', '/widget.css', '/widget.svg'):
                 with urllib.request.urlopen(base+path) as response:
                     self.assertEqual(response.status, 200)
+            with urllib.request.urlopen(base+'/register_service') as response:
+                self.assertEqual(json.load(response)['extras']['cockpit'], '/cockpit.json')
+            with urllib.request.urlopen(base+'/cockpit.json') as response:
+                manifest = json.load(response)
+                widget = manifest['widgets'][0]
+                self.assertEqual(widget['iframe_url'], widget['iframeUrl'])
+                self.assertEqual(widget['iframe_icon'], widget['iconUrl'])
+                self.assertTrue(widget['useExtensionPathAsBaseUrl'])
+            with urllib.request.urlopen(base+'/api/measurement') as response:
+                measurement = json.load(response)
+                self.assertIsNone(measurement['latest'])
+                self.assertTrue(measurement['stale'])
+                self.assertNotIn('history', measurement)
             def post(path, body, custom=True):
                 headers = {'Content-Type':'application/json'}
                 if custom:
@@ -344,6 +357,11 @@ class ServiceTests(unittest.TestCase):
             with post('/api/config', dict(DEFAULTS, mode='demo')) as response:
                 self.assertEqual(response.status, 200)
             self.service.tick()
+            with urllib.request.urlopen(base+'/api/measurement') as response:
+                measurement = json.load(response)
+                self.assertEqual(measurement['mode'], 'demo')
+                self.assertFalse(measurement['stale'])
+                self.assertEqual(measurement['latest'], self.service.state()['latest'])
             with post('/api/record', {'enabled':True}):
                 pass
             self.service.tick()

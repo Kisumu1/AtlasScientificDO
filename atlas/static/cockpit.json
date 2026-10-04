@@ -1,0 +1,16 @@
+{
+  "target_cockpit_api_version": "1.0.0",
+  "target_system": "BlueOS",
+  "targetCockpitApiVersion": "1.0.0",
+  "targetSystem": "BlueOS",
+  "widgets": [{
+    "name": "Atlas Dissolved Oxygen",
+    "iframe_url": "/widget.html",
+    "iframe_icon": "/widget.svg",
+    "iframeUrl": "/widget.html",
+    "iconUrl": "/widget.svg",
+    "useExtensionPathAsBaseUrl": true,
+    "scaleContentWithWidget": false
+  }],
+  "actions": []
+}

@@ -29,14 +29,16 @@ def handler(service):
             try:
                 if url.path == '/api/state':
                     return self.send(service.state())
+                if url.path == '/api/measurement':
+                    return self.send(service.measurement())
                 if url.path == '/api/ports':
                     return self.send(service.ports(parse_qs(url.query).get('transport', ['i2c'])[0]))
                 if url.path == '/register_service':
                     return self.send(dict(name='Atlas Sensors', description='Dissolved oxygen monitoring',
                                           icon='mdi-water-percent', company='Community extension',
-                                          version=os.environ.get('ATLAS_VERSION', '0.1.2-beta.5'),
+                                          version=os.environ.get('ATLAS_VERSION', '0.1.3-beta.1'),
                                           webpage=os.environ.get('ATLAS_SOURCE_URL') or '/', api='/api/state',
-                                          works_in_relative_paths=True))
+                                          works_in_relative_paths=True, extras={'cockpit': '/cockpit.json'}))
                 if url.path == '/api/export':
                     session = parse_qs(url.query).get('session', [''])[0]
                     if len(session) != 32 or any(c not in '0123456789abcdef' for c in session):
@@ -57,7 +59,12 @@ def handler(service):
                     return
                 files = {'/': ('index.html', 'text/html; charset=utf-8'),
                          '/app.js': ('app.js', 'text/javascript; charset=utf-8'),
-                         '/style.css': ('style.css', 'text/css; charset=utf-8')}
+                         '/style.css': ('style.css', 'text/css; charset=utf-8'),
+                         '/cockpit.json': ('cockpit.json', 'application/json'),
+                         '/widget.html': ('widget.html', 'text/html; charset=utf-8'),
+                         '/widget.js': ('widget.js', 'text/javascript; charset=utf-8'),
+                         '/widget.css': ('widget.css', 'text/css; charset=utf-8'),
+                         '/widget.svg': ('widget.svg', 'image/svg+xml')}
                 if url.path in files:
                     name, mime = files[url.path]
                     return self.send((STATIC / name).read_bytes(), mime)

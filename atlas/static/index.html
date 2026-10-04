@@ -2,11 +2,11 @@
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Atlas DO · BlueOS</title><link rel="stylesheet" href="style.css"></head>
 <body>
-<header><div class="brand">Atlas DO</div><span class="badge" id="status">Loading…</span></header>
+<header><div class="brand">Atlas Scientific</div><span class="badge" id="status">Loading…</span></header>
 <main>
 <div class="heading"><div><h1>Dissolved oxygen</h1><p class="muted">Connect your sensor to the BlueOS Pi by USB.</p></div></div>
 <form id="settings" class="card connection">
-<div class="connect-row"><div><h2>Your sensor</h2><p id="identity" class="small muted">No sensor connected</p></div><button type="button" class="primary" id="refresh">Find & connect</button></div>
+<div class="connect-row"><div><h2>Sensor connection</h2><p id="identity" class="small muted">No sensor connected</p></div><button type="button" class="primary" id="refresh">Find & connect</button></div>
 <p class="small muted">Uses the settings below. Check water temperature and salinity before measuring.</p>
 <details id="advanced"><summary>Sensor settings</summary><div class="details-content">
 <label>Connection<select id="transport"><option value="uart">USB carrier</option><option value="i2c">I²C · original carrier</option></select></label>
@@ -24,8 +24,8 @@
 <div id="message" role="alert" class="notice error" hidden></div>
 <details id="message-details" class="technical" hidden><summary>Technical details</summary><pre id="message-raw"></pre></details>
 <section class="metrics" aria-label="Current measurements">
-<article class="card reading"><p class="eyebrow">DISSOLVED OXYGEN</p><div><strong id="mg">—</strong><span class="unit">mg/L</span></div><p id="freshness" class="muted">Waiting for a reading</p></article>
-<article class="card reading"><p class="eyebrow">SATURATION</p><div><strong id="sat">—</strong><span class="unit">%</span></div><p class="muted">Reported by your sensor</p></article>
+<article class="card reading"><p class="eyebrow">Dissolved oxygen</p><div><strong id="mg">—</strong><span class="unit">mg/L</span></div><p id="freshness" class="muted">Waiting for a reading</p></article>
+<article class="card reading"><p class="eyebrow">Saturation</p><div><strong id="sat">—</strong><span class="unit">%</span></div><p class="muted">Oxygen saturation</p></article>
 </section>
 <div class="record-row"><button id="record" disabled>Start recording</button><p id="record-state" class="small muted">Recording is stopped.</p></div>
 <details class="card expandable" id="trend"><summary>Reading history</summary><div class="details-content"><label class="inline">Show <select id="metric"><option value="mg_l">mg/L</option><option value="saturation_pct">% saturation</option></select></label><canvas id="chart" role="img" aria-label="Dissolved oxygen trend chart"></canvas><div class="chart-footer"><span id="chart-start">Waiting for readings</span><span id="chart-end">Time</span></div></div></details>
@@ -35,5 +35,6 @@
 <p class="small muted">Follow Atlas's probe preparation instructions and wait for stable readings before calibrating. Air calibration uses a prepared probe exposed to air. Zero calibration requires zero-oxygen solution. Both change the sensor's saved calibration.</p>
 <a href="https://files.atlas-scientific.com/DO_EZO_Datasheet.pdf" target="_blank" rel="noopener">Atlas calibration instructions ↗</a><div class="actions"><button id="cal-air" disabled>Calibrate in air</button><button id="cal-zero" disabled>Calibrate zero</button></div>
 </div></details>
-<footer>Atlas DO · BlueOS</footer>
+<details class="card expandable"><summary>Cockpit widget</summary><div class="details-content"><p>In Cockpit, enter Edit mode, open the widget picker and add <strong>Atlas Dissolved Oxygen</strong>.</p><p class="small muted">The widget shows readings from this sensor connection. Connect the sensor here first.</p><a href="widget.html" target="_blank" rel="noopener">Preview widget</a></div></details>
+<footer>Atlas Scientific EZO-DO · BlueOS extension</footer>
 </main><script src="app.js"></script></body></html>
