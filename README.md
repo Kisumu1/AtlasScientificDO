@@ -160,10 +160,12 @@ Version 0.1.3-beta.1 was verified on the same Pi and USB sensor: BlueOS discover
 
 The bottom bar accepts mini-widgets. From version **0.1.3-beta.3**, the extension publishes named oxygen telemetry through the BlueOS MAVLink router automatically. No extra device or Docker permissions are required.
 
+First enable **DataLake variables from other systems** in Cockpit's MAVLink settings (visible with Pirate mode enabled).
+
 1. Enter **Edit Interface** in Cockpit and select **Mini** in the widget picker.
 2. Drag **Very Generic Indicator** into a bottom-bar container.
-3. Open its settings and select **Custom**. Set display name **Oxygen**, variable **NAMED_VALUE_FLOAT/ATLAS_DO**, unit **mg/L**, multiplier **1**, decimal places **2**.
-4. For saturation, add a second indicator using **NAMED_VALUE_FLOAT/ATLAS_SAT**, name **O2 saturation**, unit **%**, decimal places **1**.
+3. Open its settings and select **Custom**. Set display name **Oxygen**, variable **ATLAS_DO (System 1 / Component 25)**, unit **mg/L**, multiplier **1**, decimal places **2**.
+4. For saturation, add a second indicator using **ATLAS_SAT (System 1 / Component 25)**, name **O2 saturation**, unit **%**, decimal places **1**.
 5. Exit edit mode. Place these in any view or top/bottom bar like other native indicators.
 
 Only fresh hardware readings are published. **-1** means unavailable (disconnected, stale, or demo mode); **ATLAS_OK** is **1** for a valid hardware reading and **0** otherwise. Generic indicators can retain their last value if the whole extension or vehicle link stops. Check Cockpit's connection indication; the regular widget also has a reading-age timeout.
