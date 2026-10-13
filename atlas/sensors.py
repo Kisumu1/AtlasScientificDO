@@ -29,6 +29,15 @@ def parse_do(line):
 
 
 class EzoDO:
+    identity_kind = 'DO'
+
+    def accepts_identity(self, identity):
+        return is_do_identity(identity)
+
+    def configure_outputs(self):
+        self.command('O,mg,1')
+        self.command('O,%,1')
+
     def __init__(self, port, baud):
         if re.fullmatch(r'/dev/tty(?:AMA|S)\d+', os.path.realpath(port)):
             raise SensorError('This is an onboard UART, not the USB carrier. Choose UART / USB serial, click Find & connect, and select /dev/ttyUSB… or its /dev/serial/by-id/… entry.')
@@ -37,8 +46,8 @@ class EzoDO:
         try:
             # Identify before changing device settings. Query also works if *OK is off.
             self.identity = self.command('i', prefix='?i,', identify=True)[0]
-            if not is_do_identity(self.identity):
-                raise SensorError('Selected port is not an Atlas EZO-DO circuit')
+            if not self.accepts_identity(self.identity):
+                raise SensorError(f'Selected port is not an Atlas EZO-{self.identity_kind} circuit')
             # Stop unsolicited samples, then enable acknowledgements for transactions.
             for cmd in ('C,0', '*OK,1'):
                 self.serial.write((cmd + '\r').encode('ascii'))
@@ -46,8 +55,7 @@ class EzoDO:
                 time.sleep(0.7)
                 self.serial.reset_input_buffer()
             self.command('C,0')
-            self.command('O,mg,1')
-            self.command('O,%,1')
+            self.configure_outputs()
         except Exception:
             self.close()
             raise
@@ -86,9 +94,12 @@ class EzoDO:
         raise SensorError('EZO timeout; check UART mode, baud rate, cable, and USB mapping')
 
     def compensate(self, config):
-        self.command(f"T,{config['temperature_c']}")
+        self.set_temperature(config['temperature_c'])
         self.command(f"S,{config['salinity_ppt']},ppt")
         self.command(f"P,{config['pressure_kpa']}")
+
+    def set_temperature(self, temperature_c):
+        self.command(f'T,{temperature_c}')
 
     def calibration(self):
         reply = self.command('Cal,?', prefix='?Cal,')[0]
@@ -112,6 +123,29 @@ class EzoDO:
 
     def close(self):
         self.serial.close()
+
+
+class EzoRTD(EzoDO):
+    """EZO-RTD over a USB UART carrier; never changes RTD calibration."""
+    identity_kind = 'RTD'
+
+    def accepts_identity(self, identity):
+        parts = identity.upper().split(',')
+        return len(parts) == 3 and parts[:2] == ['?I', 'RTD'] and bool(parts[2])
+
+    def configure_outputs(self):
+        self.command('S,c')  # RTD scale is independent of DO salinity.
+
+    def read(self):
+        lines = self.command('R')
+        try:
+            value = float(lines[0]) if len(lines) == 1 else float('nan')
+        except ValueError as exc:
+            raise SensorError('Invalid EZO-RTD temperature') from exc
+        # Match this extension's supported water-temperature compensation range.
+        if not math.isfinite(value) or not 0 <= value <= 50:
+            raise SensorError('EZO-RTD water temperature must be between 0 and 50 °C')
+        return value
 
 
 class LinuxI2CBus:

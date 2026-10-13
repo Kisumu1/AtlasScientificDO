@@ -1,7 +1,9 @@
 'use strict';
 const $ = id => document.getElementById(id);
 let state, initialized = false, busy = false;
-const fields = ['mode','transport','port','baud','i2c_address','interval_s','temperature_c','salinity_ppt','pressure_kpa'];
+const fields = ['mode','transport','port','baud','i2c_address','interval_s','temperature_c','salinity_ppt','pressure_kpa','temperature_source','temperature_port','temperature_baud'];
+const stringFields = ['mode','transport','port','temperature_source','temperature_port'];
+function temperatureUI(){ $('temperature-usb-settings').hidden=$('temperature_source').value==='manual'; }
 function connectionUI() {
   const i2c = $('transport').value === 'i2c';
   $('address-field').hidden = !i2c; $('baud-field').hidden = i2c;
@@ -65,7 +67,7 @@ function chart() {
 }
 function render(s) {
   state=s;
-  if (!initialized) {fields.forEach(k=>$(k).value=s.config[k]);initialized=true;connectionUI();}
+  if (!initialized) {fields.forEach(k=>$(k).value=s.config[k]);initialized=true;connectionUI();temperatureUI();}
   const demo=s.config.mode==='demo', live=s.status==='connected'&&!s.stale;
   $('status').textContent=demo?'Demo':live?'Connected':s.status==='connecting'?'Connecting…':s.error?'Not connected':'Ready';
   $('status').className='badge '+(demo?'demo':live?'live':'');
@@ -74,7 +76,12 @@ function render(s) {
   $('error-details').hidden=!s.error;$('error-raw').textContent=s.error;
   $('mg').textContent=live?s.latest.mg_l.toFixed(2):'—';$('sat').textContent=live?s.latest.saturation_pct.toFixed(1):'—';
   $('freshness').textContent=s.latest?(s.stale?'Last reading is stale · ':'Updated ')+Math.round(s.age_s)+' seconds ago':'Waiting for a reading';
-  $('ctx-temp').textContent=s.config.temperature_c+' °C';$('ctx-sal').textContent=s.config.salinity_ppt+' ppt';$('ctx-pressure').textContent=s.config.pressure_kpa+' kPa';
+  const temp=s.temperature||{effective_c:s.config.temperature_c,source:'manual'};
+  $('ctx-temp').textContent=temp.effective_c+' °C · '+(temp.source==='ezo_rtd'?'USB temperature sensor':temp.source==='manual_fallback'?'manual fallback':'manual');
+  const tempStatus=$('temperature-status');
+  tempStatus.className='notice '+(live&&temp.source==='manual_fallback'?'error':'');
+  tempStatus.textContent=!live?'Temperature compensation will appear when the sensor connects.':temp.source==='ezo_rtd'?'Water temperature: '+temp.effective_c.toFixed(3)+' °C · USB EZO-RTD':temp.source==='manual_fallback'?'Using manual fallback: '+temp.effective_c+' °C. '+temp.error:'Using manual temperature: '+temp.effective_c+' °C.';
+  $('ctx-sal').textContent=s.config.salinity_ppt+' ppt';$('ctx-pressure').textContent=s.config.pressure_kpa+' kPa';
   $('cal-status').textContent=demo?'Not applicable':s.calibration_points===null?'Unknown':s.calibration_points===0?'Not calibrated':s.calibration_points+' point';
   $('identity').textContent=s.identity?'EZO-DO · '+s.config.port:'No sensor connected';
   $('record').disabled=!s.recording&&!live;$('record').textContent=s.recording?'Stop recording':'Start recording';
@@ -88,7 +95,7 @@ function render(s) {
   chart();
 }
 async function update(){render(await api('api/state'));}
-function formConfig(){return Object.fromEntries(fields.map(k=>[k,['mode','transport','port'].includes(k)?$(k).value.trim():Number($(k).value)]));}
+function formConfig(){return Object.fromEntries(fields.map(k=>[k,stringFields.includes(k)?$(k).value.trim():Number($(k).value)]));}
 async function findSensor(){
   if(!$('settings').checkValidity()){$('advanced').open=true;$('settings').reportValidity();return;}
   const button=$('refresh');button.textContent='Finding…';
@@ -100,6 +107,8 @@ async function findSensor(){
 }
 async function refreshPorts(){const ports=await api('api/ports?transport='+$('transport').value);$('ports').replaceChildren();ports.forEach(p=>{const o=document.createElement('option');o.value=p.device;o.label=p.description;$('ports').append(o);});$('port-help').textContent=ports.length?ports.map(p=>p.device+' — '+p.description).join(' · '):'No matching devices found. Check the sensor connection, selected connection type, and the extension’s device permissions.';}
 $('transport').addEventListener('change',()=>{$('port').value='';connectionUI();action(refreshPorts);});
+$('temperature_source').addEventListener('change',temperatureUI);
+async function refreshTemperaturePorts(){const ports=await api('api/ports?transport=uart');$('temperature-ports').replaceChildren();ports.forEach(p=>{const o=document.createElement('option');o.value=p.device;o.label=p.description;$('temperature-ports').append(o);});}
 $('settings').addEventListener('submit',e=>{e.preventDefault();action(async()=>{const config=formConfig();if(config.mode==='hardware'&&!config.port)throw new Error('Choose the sensor bus or serial device first');await api('api/config',config);});});
 $('record').addEventListener('click',()=>action(()=>api('api/record',{enabled:!state.recording})));
 $('refresh').addEventListener('click',()=>action(findSensor));
@@ -107,7 +116,7 @@ for(const kind of ['air','zero'])$('cal-'+kind).addEventListener('click',()=>{if
 $('metric').addEventListener('change',chart);window.addEventListener('resize',chart);
 $('trend').addEventListener('toggle',chart);
 async function poll(){if(busy){setTimeout(poll,2000);return;}try{await update();}catch(e){$('status').textContent='Dashboard offline';$('mg').textContent='—';$('sat').textContent='—';$('notice').textContent='Cannot reach the extension. Check your connection to BlueOS.';for(const id of ['record','cal-air','cal-zero'])$(id).disabled=true;}finally{setTimeout(poll,2000);}}
-poll();refreshPorts().catch(()=>{});
+poll();refreshPorts().catch(()=>{});refreshTemperaturePorts().catch(()=>{});
 
 const cockpitStreamUrl = new URL('cockpit/ws', location.href);
 cockpitStreamUrl.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';

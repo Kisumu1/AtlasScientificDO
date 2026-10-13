@@ -12,9 +12,13 @@
 <label>Connection<select id="transport"><option value="uart">USB carrier</option><option value="i2c">I²C · original carrier</option></select></label>
 <label><span id="port-label">USB device (optional)</span><input id="port" list="ports" placeholder="Choose automatically"><datalist id="ports"></datalist></label><p id="port-help" class="muted small">Find & connect chooses the sensor's USB port automatically.</p>
 <div class="form-grid"><label id="address-field" hidden>I²C address<input id="i2c_address" type="number" min="8" max="119" step="1" value="97" required></label><label id="baud-field">Baud rate<select id="baud"><option>300</option><option>1200</option><option>2400</option><option selected>9600</option><option>19200</option><option>38400</option><option>57600</option><option>115200</option></select></label><label>Read every (seconds)<input id="interval_s" type="number" min="1" max="60" step="1" value="2" required></label></div>
-<div class="form-grid"><label>Water temperature (°C)<input id="temperature_c" type="number" min="0" max="50" step="0.1" value="20" required></label><label>Salinity (ppt)<input id="salinity_ppt" type="number" min="0" max="42" step="0.1" value="0" required></label></div>
+<label>Temperature source<select id="temperature_source"><option value="auto">Automatic · USB EZO-RTD</option><option value="manual">Manual temperature</option></select></label>
+<div id="temperature-usb-settings"><label>Temperature USB device (optional)<input id="temperature_port" list="temperature-ports" placeholder="Detect automatically"><datalist id="temperature-ports"></datalist></label>
+<label>Temperature baud rate<select id="temperature_baud"><option>300</option><option>1200</option><option>2400</option><option selected>9600</option><option>19200</option><option>38400</option><option>57600</option><option>115200</option></select></label>
+<p class="small muted">Plug the EZO-RTD USB carrier into the BlueOS Pi. Leave the device blank to detect it. With multiple RTDs, select the one measuring water beside the DO probe.</p></div>
+<div class="form-grid"><label>Manual / fallback water temperature (°C)<input id="temperature_c" type="number" min="0" max="50" step="0.1" value="20" required></label><label>Salinity (ppt)<input id="salinity_ppt" type="number" min="0" max="42" step="0.1" value="0" required></label></div>
 <label>Air pressure at the water surface (kPa)<input id="pressure_kpa" type="number" min="50" max="150" step="0.1" value="101.3" required></label>
-<p class="small muted">These values are entered manually. Use surface air pressure, not pressure at the ROV's depth.</p>
+<p class="small muted">Automatic temperature uses a fresh sensor reading before each oxygen measurement. If unavailable, the manual temperature is used and marked below. Salinity and air pressure remain manual. Use surface air pressure, not pressure at the ROV's depth.</p>
 <label>Measurements<select id="mode"><option value="hardware">Real sensor</option><option value="demo">Demo · simulated readings</option></select></label>
 <button id="save" type="submit">Apply settings</button>
 </div></details>
@@ -27,6 +31,7 @@
 <article class="card reading"><p class="eyebrow">Dissolved oxygen</p><div><strong id="mg">—</strong><span class="unit">mg/L</span></div><p id="freshness" class="muted">Waiting for a reading</p></article>
 <article class="card reading"><p class="eyebrow">Saturation</p><div><strong id="sat">—</strong><span class="unit">%</span></div><p class="muted">Oxygen saturation</p></article>
 </section>
+<p id="temperature-status" class="notice" role="status">Waiting for temperature information</p>
 <div class="record-row"><button id="record" disabled>Start recording</button><p id="record-state" class="small muted">Recording is stopped.</p></div>
 <details class="card expandable" id="trend"><summary>Reading history</summary><div class="details-content"><label class="inline">Show <select id="metric"><option value="mg_l">mg/L</option><option value="saturation_pct">% saturation</option></select></label><canvas id="chart" role="img" aria-label="Dissolved oxygen trend chart"></canvas><div class="chart-footer"><span id="chart-start">Waiting for readings</span><span id="chart-end">Time</span></div></div></details>
 <details class="card expandable"><summary>Saved recordings</summary><div class="details-content"><p class="small muted">Saved on the Pi. Download a CSV to your computer.</p><div id="sessions" class="sessions"><p class="muted">No recordings yet.</p></div></div></details>
