@@ -2,7 +2,7 @@
 
 An onboard BlueOS extension for the **Atlas EZO-DO circuit**, connected through an Atlas USB serial carrier or the original ISCCB-2 isolated carrier over I²C. The Raspberry Pi runs the driver, logging and web server. The interface opens inside BlueOS. The deployment target is the BlueOS Extensions Manager.
 
-Current release: **0.1.3-beta.5**. Only dissolved oxygen is implemented. This is an independent community integration, not an official Atlas Scientific product.
+Current source version: **0.1.4-beta.1**. Supports dissolved oxygen and automatic water-temperature compensation from a USB EZO-RTD. This is an independent community integration, not an official Atlas Scientific product. Build and publish this version before selecting its tag in BlueOS.
 
 ## What makes this a BlueOS extension
 
@@ -28,7 +28,7 @@ This uses GitHub’s build machines and **GitHub Container Registry (GHCR)**. No
 6. From the completed workflow, download the **blueos-install-and-bazaar** artifact. Its `INSTALL.txt` contains the actual install fields for your account, and `blueos-settings.json` contains the settings to paste into BlueOS. For this repository the image tag is:
 
    ```text
-   ghcr.io/kisumu1/blueos-atlas-sensors:0.1.3-beta.5
+   ghcr.io/kisumu1/blueos-atlas-sensors:0.1.4-beta.1
    ```
 
 GHCR publishing uses the GitHub repository owner and its GitHub noreply address for the required metadata labels; the source repository's Issues page is the support link. Old Docker Hub secrets and placeholder `MY_NAME`/`MY_EMAIL` variables are unused when `registry=ghcr`.
@@ -53,17 +53,30 @@ You can install your own image without waiting for public Bazaar approval.
    | Extension Identifier | `kisumu1.atlas-sensors` |
    | Extension Name | `Atlas Sensors` |
    | Docker image | `ghcr.io/kisumu1/blueos-atlas-sensors` |
-   | Docker tag | `0.1.3-beta.5` |
+   | Docker tag | `0.1.4-beta.1` |
    | Custom settings | Paste the complete `blueos-settings.json` from this package or workflow artifact |
 
 5. Submit the install. BlueOS downloads the matching ARM image, creates its container and manages its lifecycle. **Atlas Sensors** should appear on the Installed page and then in the sidebar after service discovery.
 6. Open **Atlas Sensors** from the BlueOS sidebar. Open **Sensor settings**, check the compensation values, and use **USB carrier** with **9600 baud** unless you previously changed it. Click **Find & connect** to automatically identify the sensor, select its USB port, save the settings, and start readings. For an I²C connection instead, select **I²C**, bus **`/dev/i2c-6`**, and address **`97`** (decimal, equivalent to `0x61`).
-7. **Find & connect** needs no additional Save click. To change settings afterward or connect to a manually selected port, set water temperature, salinity and surface atmospheric pressure, then click **Apply settings**. Baud rate does not apply to I²C.
+7. **Find & connect** needs no additional Save click. To change settings afterward or connect to a manually selected port, set temperature source, manual/fallback water temperature, salinity and surface atmospheric pressure, then click **Apply settings**. Baud rate does not apply to I²C DO connections; the USB temperature sensor has its own baud rate.
 8. Verify the identified EZO-DO, real readings, calibration status, recording/export and recovery after an extension restart.
 
 The default port is allocated by BlueOS; there is no need to use localhost or manually start a server. Open it through BlueOS. Manage stop/start, restart, settings and uninstall through the Extensions Manager.
 
-### USB connection troubleshooting
+### Automatic water temperature (USB EZO-RTD)
+
+1. Connect the RTD probe to its EZO-RTD circuit and USB carrier. Plug that carrier into the BlueOS Pi alongside the DO carrier. Keep EZO-RTD in UART mode, normally 9600 baud.
+2. Place the temperature probe in the same water beside the DO probe. This setting requires water temperature, not Pi/CPU or enclosure temperature.
+3. In **Sensor settings**, select **Automatic · USB EZO-RTD**. Leave **Temperature USB device** blank for automatic detection. If you have multiple EZO-RTDs, select the intended `/dev/serial/by-id/…` device. DO and RTD must use separate USB devices.
+4. Set **Manual / fallback water temperature** to a reasonable measured value, then click **Apply settings** (stop recording first).
+5. The dashboard shows the fresh RTD temperature and source. Each oxygen measurement is preceded by an RTD reading and a DO `T,<temperature>` command. The RTD is configured to output Celsius; neither probe's calibration is changed automatically.
+6. If the RTD is unplugged, returns an invalid value, or no unique RTD is detected, measurements use the manual fallback and the dashboard marks that state. Failed detection is retried about every 10 seconds, on a sampling cycle. Old RTD temperatures are never reused after a read failure. Reconnection resumes automatic compensation, including during recording.
+
+CSV `temperature_c` contains the temperature actually used for that oxygen reading. `temperature_source` is `ezo_rtd`, `manual`, or `manual_fallback`; the RTD device and temperature acquisition timestamp are also recorded. Existing settings and older recordings remain readable. The supported temperature range is 0–50 °C, matching this extension's existing compensation range. Salinity and atmospheric pressure remain manual. Temperature compensation does not replace the probe preparation and calibration procedure.
+
+This feature has automated protocol, compensation-order, recording, fallback, reconnection and compatibility tests. Physical USB EZO-RTD operation has not yet been verified on the vehicle. Protocol reference: [Atlas EZO-RTD datasheet](https://files.atlas-scientific.com/EZO_RTD_Datasheet.pdf).
+
+### DO USB connection troubleshooting
 
 `/dev/ttyAMA1` is an onboard UART, not the USB carrier. The extension does not grant access to onboard UARTs. Choose **USB carrier**, click **Find & connect** to identify, verify a reading, and automatically save the carrier's `/dev/ttyUSB...` device or `/dev/serial/by-id/...` entry. Start at 9600 baud unless you changed the EZO baud rate. USB listings are candidates; the driver verifies EZO-DO identity before applying settings.
 
@@ -125,7 +138,7 @@ Publishing a container image alone does not create a public store listing. You d
 - A simple main screen with Find & connect, mg/L, percent saturation and recording. Sensor settings, history, saved recordings and calibration are expandable. Connection errors use plain language with original technical details available underneath. New installations default to USB; saved I2C settings are preserved.
 - Manual recording to SQLite and per-recording CSV downloads. UTC timestamps, real/demo mode, compensation inputs and calibration status are included. Recording does not resume automatically after restart.
 - EZO-DO identity verification before configuration. Accepts both the older `?i,D.O.,...` response and `?I,DO,2.17` observed on the actual USB sensor; response prefixes are case-insensitive. Enables both output units and serializes commands with sampling. The I²C driver uses raw command bytes and binary response status, with processing delays and bounded busy retries. Continuous output is disabled only for UART connections.
-- Manual temperature, salinity in ppt, and atmospheric pressure compensation, reapplied after reconnect. Defaults must be checked for your deployment. The atmospheric pressure field is not ROV depth pressure.
+- Automatic USB EZO-RTD temperature or explicit manual temperature, with visible manual fallback and source metadata in recordings. Salinity in ppt and atmospheric pressure remain manual and are reapplied after reconnect. Defaults must be checked for your deployment. The atmospheric pressure field is not ROV depth pressure.
 - Air and zero calibration controls require confirmation and stopped recording. Follow the [Atlas preparation and calibration procedure](https://files.atlas-scientific.com/DO_EZO_Datasheet.pdf). Existing calibration is not changed on startup.
 - Demo mode is explicitly labeled and never used as an automatic fallback for failed hardware.
 - **Find & connect** tries available USB serial ports at the selected baud rate, verifies EZO-DO identity and a reading, saves the working port, and connects automatically. USB aliases are deduplicated. It uses the current compensation values and never changes calibration. For I2C it checks only the selected bus/address (default external bus 6, address 97). Application reconnects after communication errors. No automatic address scanning or protocol switching is performed.
