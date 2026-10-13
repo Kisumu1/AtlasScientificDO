@@ -14,15 +14,23 @@ from pathlib import Path
 
 from serial.tools import list_ports
 from .sensors import DemoDO, EzoDO, EzoDOI2C, SensorError
+from .temperature import TemperatureSource
 
 DEFAULTS = dict(mode='hardware', port='', baud=9600, interval_s=2,
                 temperature_c=20.0, salinity_ppt=0.0, pressure_kpa=101.3,
-                transport='uart', i2c_address=97)
+                transport='uart', i2c_address=97, temperature_source='auto',
+                temperature_port='', temperature_baud=9600)
 FIELDS = ['timestamp_utc', 'mode', 'sensor', 'mg_l', 'saturation_pct',
-          'temperature_c', 'salinity_ppt', 'pressure_kpa', 'calibration_points']
+          'temperature_c', 'salinity_ppt', 'pressure_kpa', 'calibration_points',
+          'temperature_source', 'temperature_port', 'temperature_timestamp_utc']
 
 
 def validate_config(raw):
+    # Accept settings saved by earlier releases without dropping their values.
+    if isinstance(raw, dict):
+        raw = dict(raw)
+        for key in ('temperature_source', 'temperature_port', 'temperature_baud'):
+            raw.setdefault(key, DEFAULTS[key])
     if not isinstance(raw, dict) or set(raw) != set(DEFAULTS):
         raise ValueError('Provide all connection and compensation settings')
     result = dict(raw)
@@ -30,6 +38,18 @@ def validate_config(raw):
         raise ValueError('Invalid mode')
     if raw['transport'] not in ('i2c', 'uart'):
         raise ValueError('Choose I2C or UART')
+    if raw['temperature_source'] not in ('manual', 'auto'):
+        raise ValueError('Choose automatic USB RTD or manual temperature')
+    temp_port = raw['temperature_port']
+    if not isinstance(temp_port, str) or len(temp_port) > 250 or any(ord(c) < 32 for c in temp_port):
+        raise ValueError('Invalid temperature USB device')
+    if temp_port and not (re.fullmatch(r'/dev/tty(?:USB|ACM)\d+', temp_port)
+                          or re.fullmatch(r'/dev/serial/by-id/[^/]+', temp_port)):
+        raise ValueError('Temperature device must be a USB serial port or /dev/serial/by-id/…')
+    if temp_port and raw['port'] and os.path.realpath(temp_port) == os.path.realpath(raw['port']):
+        raise ValueError('Temperature and DO sensors must use different USB devices')
+    if type(raw['temperature_baud']) is not int or raw['temperature_baud'] not in (300, 1200, 2400, 9600, 19200, 38400, 57600, 115200):
+        raise ValueError('Unsupported temperature baud rate')
     if type(raw['i2c_address']) is not int or not 8 <= raw['i2c_address'] <= 119:
         raise ValueError('I2C address must be between 8 and 119 (default 97 / 0x61)')
     if not isinstance(raw['port'], str) or len(raw['port']) > 250 or any(ord(c) < 32 for c in raw['port']):
@@ -69,6 +89,9 @@ class Service:
         self.identity = ''
         self.points = None
         self.latest = None
+        self.temperature_reader = TemperatureSource()
+        self.temperature = dict(effective_c=self.config['temperature_c'], source='manual',
+                                port='', timestamp_utc=None, error='')
         self.history = deque(maxlen=1800)
         self.recording = False
         self.session = None
@@ -169,7 +192,11 @@ class Service:
             temporary.write_text(json.dumps(config, indent=2))
             os.replace(temporary, self.config_path)
             self.disconnect()
+            self.temperature_reader.close()
+            self.temperature_reader = TemperatureSource()
             self.config = config
+            self.temperature = dict(effective_c=config['temperature_c'], source='manual',
+                                    port='', timestamp_utc=None, error='')
             self.latest = None
             self.history.clear()
             self.status, self.error = 'waiting', ''
@@ -191,10 +218,19 @@ class Service:
                     self.sensor.compensate(self.config)
                     self.points = self.sensor.calibration()
                     self.identity = self.sensor.identity
+                temperature = self.temperature_reader.sample(self.config, lambda: self.ports('uart'), self.now)
+                if self.config['mode'] == 'hardware':
+                    # Always apply the fresh RTD value or manual fallback BEFORE R.
+                    self.sensor.set_temperature(temperature['effective_c'])
+                self.temperature = temperature
                 values = self.sensor.read()
                 sample = dict(timestamp_utc=self.now(), mode=self.config['mode'],
                               sensor='ezo-do', **values, calibration_points=self.points,
-                              **{k: self.config[k] for k in ('temperature_c', 'salinity_ppt', 'pressure_kpa')})
+                              temperature_c=temperature['effective_c'],
+                              temperature_source=temperature['source'],
+                              temperature_port=temperature['port'],
+                              temperature_timestamp_utc=temperature['timestamp_utc'],
+                              **{k: self.config[k] for k in ('salinity_ppt', 'pressure_kpa')})
                 self.latest = sample
                 self.history.append(sample)
                 self.status, self.error = 'connected', ''
@@ -233,6 +269,7 @@ class Service:
             sessions = [dict(id=row[0], mode=row[1], started=row[2], stopped=row[3]) for row in
                         self.db.execute('SELECT * FROM sessions ORDER BY started DESC LIMIT 100')]
             return dict(config=dict(self.config), status=self.status, error=self.error,
+                        temperature=dict(self.temperature),
                         identity=self.identity, calibration_points=self.points,
                         latest=measurement['latest'], stale=measurement['stale'], age_s=measurement['age_s'], history=list(self.history),
                         recording=self.recording, session=self.session, sessions=sessions,
@@ -265,6 +302,8 @@ class Service:
             if self.recording:
                 raise ValueError('Stop recording before calibration')
             try:
+                self.temperature = self.temperature_reader.sample(self.config, lambda: self.ports('uart'), self.now)
+                self.sensor.set_temperature(self.temperature['effective_c'])
                 self.points = self.sensor.calibrate(kind)
                 self.latest = None
                 self.history.clear()
@@ -287,7 +326,12 @@ class Service:
             for (raw,) in db.execute('SELECT data FROM samples WHERE session=? ORDER BY rowid', (session,)):
                 output.seek(0)
                 output.truncate()
-                writer.writerow(json.loads(raw))
+                sample = json.loads(raw)
+                # Older recordings used manually supplied temperatures.
+                sample.setdefault('temperature_source', 'manual')
+                sample.setdefault('temperature_port', '')
+                sample.setdefault('temperature_timestamp_utc', None)
+                writer.writerow(sample)
                 yield output.getvalue().encode()
         finally:
             db.close()
@@ -299,4 +343,5 @@ class Service:
         with self.lock:
             self.record(False)
             self.disconnect()
+            self.temperature_reader.close()
             self.db.close()
